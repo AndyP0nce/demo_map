@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Campus Housing Finder – Demo</title>
+
+  <!-- Stylesheets (split by concern for portability) -->
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/map.css">
+  <link rel="stylesheet" href="css/cards.css">
+</head>
+
+<body>
+  <!-- ── Header ──────────────────────────────────── -->
+  <header class="site-header">
+    <h1 class="site-header__title">Campus Housing Finder</h1>
+    <p class="site-header__subtitle">Rentals near CSUN &amp; the San Fernando Valley</p>
+  </header>
+
+  <!-- ── Main layout: sidebar (left) + map (right) ─ -->
+  <main class="app-layout">
+
+    <!-- Sidebar: scrollable listing cards -->
+    <aside class="listings-panel" id="listings-panel">
+      <div class="listings-panel__header">
+        <h2 class="listings-panel__title" id="listings-count">Loading...</h2>
+        <p class="listings-panel__subtitle">in current map view</p>
+      </div>
+      <div class="listings-panel__list" id="listings-container">
+        <!-- cards.js renders listing cards here -->
+      </div>
+    </aside>
+
+    <!-- Map container -->
+    <section class="map-panel" id="map-panel">
+      <div class="map-panel__map" id="map-container"></div>
+    </section>
+
+  </main>
+
+  <!--
+    ── Google Maps API ────────────────────────────────
+    IMPORTANT: Replace YOUR_API_KEY below with your actual
+    Google Maps JavaScript API key.
+    https://console.cloud.google.com/apis/credentials
+  -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY"></script>
+
+  <!-- App entry point (ES module – loads map.js, cards.js, listings.js) -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
