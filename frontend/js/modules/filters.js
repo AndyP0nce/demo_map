@@ -318,9 +318,7 @@ export class FilterManager {
     this.container.querySelectorAll('[data-filter="type"]').forEach((cb) => {
       cb.addEventListener('change', () => {
         cb.checked ? this.state.types.add(cb.value) : this.state.types.delete(cb.value);
-        this._updateChips();
-        this._updateButtonStates();
-        this._emitChange();
+        this._onFilterChange();
       });
     });
 
@@ -328,54 +326,40 @@ export class FilterManager {
     this.container.querySelectorAll('[data-filter="amenity"]').forEach((cb) => {
       cb.addEventListener('change', () => {
         cb.checked ? this.state.amenities.add(cb.value) : this.state.amenities.delete(cb.value);
-        this._updateChips();
-        this._updateButtonStates();
-        this._emitChange();
+        this._onFilterChange();
       });
     });
 
     // Beds
     document.getElementById('filter-beds').addEventListener('change', (e) => {
       this.state.minBeds = parseInt(e.target.value, 10);
-      this._updateChips();
-      this._updateButtonStates();
-      this._emitChange();
+      this._onFilterChange();
     });
 
     // Baths
     document.getElementById('filter-baths').addEventListener('change', (e) => {
       this.state.minBaths = parseInt(e.target.value, 10);
-      this._updateChips();
-      this._updateButtonStates();
-      this._emitChange();
+      this._onFilterChange();
     });
 
     // Price
     document.getElementById('filter-price-min').addEventListener('input', (e) => {
       this.state.priceMin = e.target.value ? parseInt(e.target.value, 10) : 0;
-      this._updateChips();
-      this._updateButtonStates();
-      this._emitChange();
+      this._onFilterChange();
     });
     document.getElementById('filter-price-max').addEventListener('input', (e) => {
       this.state.priceMax = e.target.value ? parseInt(e.target.value, 10) : Infinity;
-      this._updateChips();
-      this._updateButtonStates();
-      this._emitChange();
+      this._onFilterChange();
     });
 
     // Sqft
     document.getElementById('filter-sqft-min').addEventListener('input', (e) => {
       this.state.sqftMin = e.target.value ? parseInt(e.target.value, 10) : 0;
-      this._updateChips();
-      this._updateButtonStates();
-      this._emitChange();
+      this._onFilterChange();
     });
     document.getElementById('filter-sqft-max').addEventListener('input', (e) => {
       this.state.sqftMax = e.target.value ? parseInt(e.target.value, 10) : Infinity;
-      this._updateChips();
-      this._updateButtonStates();
-      this._emitChange();
+      this._onFilterChange();
     });
   }
 
@@ -514,9 +498,7 @@ export class FilterManager {
         this.container.querySelector(`[data-filter="amenity"][value="${value}"]`).checked = false;
         break;
     }
-    this._updateChips();
-    this._updateButtonStates();
-    this._emitChange();
+    this._onFilterChange();
   }
 
   _resetAll() {
@@ -541,9 +523,7 @@ export class FilterManager {
     document.getElementById('filter-sqft-max').value = '';
     this.container.querySelectorAll('input[type="checkbox"]').forEach((cb) => { cb.checked = false; });
 
-    this._updateChips();
-    this._updateButtonStates();
-    this._emitChange();
+    this._onFilterChange();
     this._emitSearchChange();
   }
 
@@ -702,15 +682,22 @@ export class FilterManager {
 
   // ── Filtering logic ─────────────────────────────────
 
+  /**
+   * Test whether a listing matches a search query by city, zip, or address.
+   * @param {object} listing
+   * @param {string} query – lowercase search string
+   * @returns {boolean}
+   */
+  _matchesSearch(listing, query) {
+    const city = this._parseCity(listing.address).toLowerCase();
+    const zip = this._parseZip(listing.address);
+    const addr = listing.address.toLowerCase();
+    return city.includes(query) || zip.includes(query) || addr.includes(query);
+  }
+
   applyFilters(listings) {
     return listings.filter((listing) => {
-      if (this.state.searchQuery) {
-        const city = this._parseCity(listing.address).toLowerCase();
-        const zip = this._parseZip(listing.address);
-        const addr = listing.address.toLowerCase();
-        const query = this.state.searchQuery;
-        if (!city.includes(query) && !zip.includes(query) && !addr.includes(query)) return false;
-      }
+      if (this.state.searchQuery && !this._matchesSearch(listing, this.state.searchQuery)) return false;
       if (this.state.types.size > 0 && !this.state.types.has(listing.type)) return false;
       if (listing.bedrooms < this.state.minBeds) return false;
       if (listing.bathrooms < this.state.minBaths) return false;
@@ -737,15 +724,17 @@ export class FilterManager {
   getSearchMatches() {
     if (!this.state.searchQuery) return [];
     const query = this.state.searchQuery;
-    return this.listings.filter((listing) => {
-      const city = this._parseCity(listing.address).toLowerCase();
-      const zip = this._parseZip(listing.address);
-      const addr = listing.address.toLowerCase();
-      return city.includes(query) || zip.includes(query) || addr.includes(query);
-    });
+    return this.listings.filter((listing) => this._matchesSearch(listing, query));
   }
 
   // ── Change notification ─────────────────────────────
+
+  /** Shorthand: update chips + button states + emit change. */
+  _onFilterChange() {
+    this._updateChips();
+    this._updateButtonStates();
+    this._emitChange();
+  }
 
   _emitChange() {
     if (this._onChange) this._onChange();

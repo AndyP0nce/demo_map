@@ -3,79 +3,51 @@
  * ---------------------------------------------------
  * Handles all Google Maps interactions:
  *   - Map initialization (centered on CSUN by default)
- *   - PriceMarkerOverlay: custom overlay that renders a Zillow-style
- *     price tag on the map for each listing
+ *   - Custom overlay markers (price tags + university pills)
  *   - InfoWindows: Zillow-style detail popup on marker hover
  *   - Tracks which listings are visible in the current viewport
  *   - Exposes callbacks so app.js can sync the sidebar cards
  *
  * Key classes:
- *   MapManager          – public API, used by app.js
- *   PriceMarkerOverlay  – internal, extends google.maps.OverlayView
+ *   MapManager              – public API, used by app.js
+ *   MarkerOverlay           – shared base for all custom overlays
+ *   PriceMarkerOverlay      – Zillow-style price tag pill
+ *   UniversityMarkerOverlay – campus pill with graduation-cap icon
  * ---------------------------------------------------
  */
 
-// ─── PriceMarkerOverlay ──────────────────────────────
-// Renders a small price-tag div on the map (like Zillow's $X,XXX pills).
-// Extends google.maps.OverlayView so it moves/scales with the map.
+// ─── MarkerOverlay (base class) ──────────────────────
+// Shared logic for all custom OverlayView markers:
+//   draw(), onRemove(), setActive(), and mouse event wiring.
+// Subclasses implement _createDiv() and _getActiveClass().
 
-class PriceMarkerOverlay extends google.maps.OverlayView {
-  /**
-   * @param {google.maps.LatLng} position
-   * @param {number} price      – monthly rent
-   * @param {number} id         – listing id
-   * @param {google.maps.Map} map
-   */
-  constructor(position, price, id, map) {
+class MarkerOverlay extends google.maps.OverlayView {
+  constructor(position) {
     super();
     this.position = position;
-    this.price = price;
-    this.id = id;
     this.div = null;
-
-    // Callbacks – set by MapManager after construction
     this.onMouseOver = null;
     this.onMouseOut = null;
     this.onClick = null;
-
-    // Attach to map (triggers onAdd → draw)
-    this.setMap(map);
+    // Subclasses call this.setMap(map) after setting their own properties
   }
 
-  /** Called once when the overlay is added to the map. Creates the DOM. */
   onAdd() {
-    this.div = document.createElement('div');
-    this.div.className = 'price-marker';
-    this.div.dataset.listingId = this.id;
-    this.div.textContent = `$${this.price.toLocaleString()}`;
-
-    // Forward DOM events to callbacks
-    this.div.addEventListener('mouseover', () => {
-      if (this.onMouseOver) this.onMouseOver();
-    });
-    this.div.addEventListener('mouseout', () => {
-      if (this.onMouseOut) this.onMouseOut();
-    });
-    this.div.addEventListener('click', () => {
-      if (this.onClick) this.onClick();
-    });
-
-    // overlayMouseTarget pane receives mouse events (above the map tiles)
-    const panes = this.getPanes();
-    panes.overlayMouseTarget.appendChild(this.div);
+    this.div = this._createDiv();
+    this.div.addEventListener('mouseover', () => { if (this.onMouseOver) this.onMouseOver(); });
+    this.div.addEventListener('mouseout', () => { if (this.onMouseOut) this.onMouseOut(); });
+    this.div.addEventListener('click', () => { if (this.onClick) this.onClick(); });
+    this.getPanes().overlayMouseTarget.appendChild(this.div);
   }
 
-  /** Called every frame the map redraws. Positions the div. */
   draw() {
-    const projection = this.getProjection();
-    const pos = projection.fromLatLngToDivPixel(this.position);
+    const pos = this.getProjection().fromLatLngToDivPixel(this.position);
     if (this.div) {
       this.div.style.left = pos.x + 'px';
       this.div.style.top = pos.y + 'px';
     }
   }
 
-  /** Cleanup when overlay is removed from the map. */
   onRemove() {
     if (this.div && this.div.parentNode) {
       this.div.parentNode.removeChild(this.div);
@@ -83,72 +55,71 @@ class PriceMarkerOverlay extends google.maps.OverlayView {
     }
   }
 
-  /** Toggle the --active visual state (highlighted price tag). */
   setActive(active) {
-    if (this.div) {
-      this.div.classList.toggle('price-marker--active', active);
-    }
+    if (this.div) this.div.classList.toggle(this._getActiveClass(), active);
   }
+
+  /** @abstract – subclass returns the DOM element to render */
+  _createDiv() { throw new Error('Subclass must implement _createDiv'); }
+
+  /** @abstract – subclass returns the CSS class toggled by setActive() */
+  _getActiveClass() { return 'marker--active'; }
+}
+
+// ─── PriceMarkerOverlay ──────────────────────────────
+// Renders a small price-tag div on the map (like Zillow's $X,XXX pills).
+
+class PriceMarkerOverlay extends MarkerOverlay {
+  constructor(position, price, id, map) {
+    super(position);
+    this.price = price;
+    this.id = id;
+    this.setMap(map);
+  }
+
+  _createDiv() {
+    const div = document.createElement('div');
+    div.className = 'price-marker';
+    div.dataset.listingId = this.id;
+    div.textContent = `$${this.price.toLocaleString()}`;
+    return div;
+  }
+
+  _getActiveClass() { return 'price-marker--active'; }
 }
 
 // ─── UniversityMarkerOverlay ─────────────────────────
 // Renders a named pill on the map for the university.
-// Same OverlayView approach as PriceMarkerOverlay but
-// with distinct styling and a graduation-cap icon.
 
-class UniversityMarkerOverlay extends google.maps.OverlayView {
+class UniversityMarkerOverlay extends MarkerOverlay {
   constructor(position, name, fullName, map) {
-    super();
-    this.position = position;
+    super(position);
     this.name = name;
     this.fullName = fullName;
-    this.div = null;
-    this.onMouseOver = null;
-    this.onMouseOut = null;
-    this.onClick = null;
     this.onDblClick = null;
     this.setMap(map);
   }
 
   onAdd() {
-    this.div = document.createElement('div');
-    this.div.className = 'uni-marker';
-    this.div.innerHTML = `
+    super.onAdd();
+    this.div.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      if (this.onDblClick) this.onDblClick();
+    });
+  }
+
+  _createDiv() {
+    const div = document.createElement('div');
+    div.className = 'uni-marker';
+    div.innerHTML = `
       <svg class="uni-marker__icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
         <path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6L23 9l-11-6z"/>
       </svg>
       <span class="uni-marker__name">${this.name}</span>`;
-
-    this.div.addEventListener('mouseover', () => { if (this.onMouseOver) this.onMouseOver(); });
-    this.div.addEventListener('mouseout', () => { if (this.onMouseOut) this.onMouseOut(); });
-    this.div.addEventListener('click', () => { if (this.onClick) this.onClick(); });
-    this.div.addEventListener('dblclick', (e) => { e.stopPropagation(); if (this.onDblClick) this.onDblClick(); });
-
-    const panes = this.getPanes();
-    panes.overlayMouseTarget.appendChild(this.div);
+    return div;
   }
 
-  draw() {
-    const projection = this.getProjection();
-    const pos = projection.fromLatLngToDivPixel(this.position);
-    if (this.div) {
-      this.div.style.left = pos.x + 'px';
-      this.div.style.top = pos.y + 'px';
-    }
-  }
-
-  onRemove() {
-    if (this.div && this.div.parentNode) {
-      this.div.parentNode.removeChild(this.div);
-      this.div = null;
-    }
-  }
-
-  setActive(active) {
-    if (this.div) {
-      this.div.classList.toggle('uni-marker--active', active);
-    }
-  }
+  _getActiveClass() { return 'uni-marker--active'; }
 }
 
 // ─── MapManager (public API) ─────────────────────────
@@ -414,26 +385,15 @@ export class MapManager {
     this.clearSearchHighlight();
     if (!listings.length) return;
 
-    // Build the bounding box
     const lats = listings.map((l) => l.lat);
     const lngs = listings.map((l) => l.lng);
     const PAD = 0.004; // ~400 m of padding around the edges
 
-    this._searchHighlight = new google.maps.Rectangle({
-      bounds: {
-        north: Math.max(...lats) + PAD,
-        south: Math.min(...lats) - PAD,
-        east: Math.max(...lngs) + PAD,
-        west: Math.min(...lngs) - PAD,
-      },
-      map: this.map,
-      fillColor: '#006aff',
-      fillOpacity: 0.08,
-      strokeColor: '#006aff',
-      strokeOpacity: 0.50,
-      strokeWeight: 2,
-      clickable: false,
-      zIndex: 0,
+    this._searchHighlight = this._createHighlightRect({
+      north: Math.max(...lats) + PAD,
+      south: Math.min(...lats) - PAD,
+      east: Math.max(...lngs) + PAD,
+      west: Math.min(...lngs) - PAD,
     });
   }
 
@@ -547,14 +507,7 @@ export class MapManager {
    * @returns {Promise<boolean>} true if a result was found
    */
   async geocodePlaceAndHighlight(placeId) {
-    try {
-      const { results } = await this._getGeocoder().geocode({ placeId });
-      if (results && results[0]) {
-        this._showGeocodedResult(results[0]);
-        return true;
-      }
-    } catch (_) { /* ZERO_RESULTS or error */ }
-    return false;
+    return this._geocodeAndHighlight({ placeId });
   }
 
   /**
@@ -564,8 +517,17 @@ export class MapManager {
    * @returns {Promise<boolean>} true if a result was found
    */
   async geocodeQueryAndHighlight(query) {
+    return this._geocodeAndHighlight({ address: query });
+  }
+
+  /**
+   * Shared geocode + highlight logic.
+   * @param {object} request – geocode request ({ placeId } or { address })
+   * @returns {Promise<boolean>} true if a result was found
+   */
+  async _geocodeAndHighlight(request) {
     try {
-      const { results } = await this._getGeocoder().geocode({ address: query });
+      const { results } = await this._getGeocoder().geocode(request);
       if (results && results[0]) {
         this._showGeocodedResult(results[0]);
         return true;
@@ -587,16 +549,8 @@ export class MapManager {
       this.map.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
       const ne = bounds.getNorthEast();
       const sw = bounds.getSouthWest();
-      this._searchHighlight = new google.maps.Rectangle({
-        bounds: { north: ne.lat(), south: sw.lat(), east: ne.lng(), west: sw.lng() },
-        map: this.map,
-        fillColor: '#006aff',
-        fillOpacity: 0.08,
-        strokeColor: '#006aff',
-        strokeOpacity: 0.50,
-        strokeWeight: 2,
-        clickable: false,
-        zIndex: 0,
+      this._searchHighlight = this._createHighlightRect({
+        north: ne.lat(), south: sw.lat(), east: ne.lng(), west: sw.lng(),
       });
     } else {
       // Point result – just pan and drop a pin
@@ -605,6 +559,25 @@ export class MapManager {
       if (this.map.getZoom() < 14) this.map.setZoom(14);
       this.showSearchPin(loc.lat(), loc.lng(), result.formatted_address || '');
     }
+  }
+
+  /**
+   * Create a translucent blue highlight rectangle on the map.
+   * @param {object} bounds – { north, south, east, west }
+   * @returns {google.maps.Rectangle}
+   */
+  _createHighlightRect(bounds) {
+    return new google.maps.Rectangle({
+      bounds,
+      map: this.map,
+      fillColor: '#006aff',
+      fillOpacity: 0.08,
+      strokeColor: '#006aff',
+      strokeOpacity: 0.50,
+      strokeWeight: 2,
+      clickable: false,
+      zIndex: 0,
+    });
   }
 
   // ── Event registration (called by app.js) ──────────
