@@ -272,6 +272,22 @@ export class MapManager {
     this.hideInfoWindow();
   }
 
+  // ── Marker visibility (filter integration) ─────────
+
+  /**
+   * Show or hide price markers based on which listing IDs pass the filters.
+   * Filtered-out markers become semi-transparent; passing markers stay normal.
+   * @param {Set<number>} passingIds – set of listing ids that pass all filters
+   */
+  updateMarkerVisibility(passingIds) {
+    this.priceMarkers.forEach(({ overlay, listing }) => {
+      if (overlay.div) {
+        const passes = passingIds.has(listing.id);
+        overlay.div.classList.toggle('price-marker--filtered', !passes);
+      }
+    });
+  }
+
   // ── Viewport helpers ───────────────────────────────
 
   /** Return only listings whose coordinates are inside the current map bounds. */

@@ -62,6 +62,12 @@
   z-index: 2;
 }
 
+/* Filtered-out markers – faded and non-interactive */
+.price-marker--filtered {
+  opacity: 0.25;
+  pointer-events: none;
+}
+
 /* ── Google Maps InfoWindow overrides ─────────────── */
 /* Remove default padding Google adds */
 .gm-style-iw-c {
