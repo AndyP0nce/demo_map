@@ -499,6 +499,31 @@ export class MapManager {
       .map(({ listing }) => listing);
   }
 
+  // ── Target university ──────────────────────────────
+
+  /**
+   * Pan the map to a location.
+   * @param {number} lat
+   * @param {number} lng
+   * @param {number} [zoom] – set zoom only if current zoom is lower
+   */
+  panTo(lat, lng, zoom) {
+    this.map.panTo({ lat, lng });
+    if (zoom && this.map.getZoom() < zoom) this.map.setZoom(zoom);
+  }
+
+  /**
+   * Visually highlight the target university marker with a distinct border.
+   * @param {string} name – university short name (e.g. "UCLA")
+   */
+  setTargetUniversity(name) {
+    this._uniMarkers.forEach((entry) => {
+      if (entry.overlay.div) {
+        entry.overlay.div.classList.toggle('uni-marker--target', entry.overlay.name === name);
+      }
+    });
+  }
+
   // ── Event registration (called by app.js) ──────────
 
   onBoundsChange(cb) {

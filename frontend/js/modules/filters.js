@@ -15,16 +15,22 @@
 
 export class FilterManager {
   /**
-   * @param {string} containerId – id of the DOM element to render filters into
-   * @param {Array}  listings    – full LISTINGS array to derive filter options
+   * @param {string} containerId  – id of the DOM element to render filters into
+   * @param {Array}  listings     – full LISTINGS array to derive filter options
+   * @param {Array}  universities – full UNIVERSITIES array for target selector + search
    */
-  constructor(containerId, listings) {
+  constructor(containerId, listings, universities) {
     this.container = document.getElementById(containerId);
     this.listings = listings;
+    this.universities = universities || [];
     this._onChange = null;
     this._onSearchChange = null;
+    this._onTargetChange = null;
     this._searchDebounceTimer = null;
     this._currentPanel = null; // currently open dropdown name
+
+    // Default target university (CSUN)
+    this._targetUniversity = this.universities.find((u) => u.name === 'CSUN') || this.universities[0] || null;
 
     // Derive unique values from listings
     this.allTypes = [...new Set(listings.map((l) => l.type))].sort();
@@ -69,11 +75,15 @@ export class FilterManager {
   _buildSuggestions() {
     const suggestions = [];
 
-    suggestions.push({
-      text: 'CSUN - California State University, Northridge',
-      type: 'Campus',
-      icon: 'M12 3L1 9l4 2.18v6L12 21l7-3.82v-6L23 9l-11-6z',
-      searchValue: 'northridge',
+    // All universities as campus suggestions
+    this.universities.forEach((uni) => {
+      suggestions.push({
+        text: `${uni.name} – ${uni.fullName}`,
+        type: 'Campus',
+        icon: 'M12 3L1 9l4 2.18v6L12 21l7-3.82v-6L23 9l-11-6z',
+        searchValue: `${uni.name.toLowerCase()} ${uni.fullName.toLowerCase()}`,
+        uniName: uni.name,
+      });
     });
 
     this.allCities.forEach((city) => {
@@ -122,15 +132,26 @@ export class FilterManager {
   _render() {
     const chevron = '<svg class="ftb__chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>';
 
+    const uniOptions = this.universities
+      .slice().sort((a, b) => a.name.localeCompare(b.name))
+      .map((u) => `<option value="${u.name}"${u.name === (this._targetUniversity ? this._targetUniversity.name : '') ? ' selected' : ''}>${u.name}</option>`)
+      .join('');
+
     this.container.innerHTML = `
       <div class="ftb">
-        <!-- Row 1: Search bar -->
-        <div class="ftb__row">
+        <!-- Row 1: Target school + Search bar -->
+        <div class="ftb__row ftb__search-row">
+          <div class="ftb__target" title="Target university – distances are calculated from this school">
+            <svg class="ftb__target-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+              <path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6L23 9l-11-6z"/>
+            </svg>
+            <select class="ftb__target-select" id="filter-target">${uniOptions}</select>
+          </div>
           <div class="ftb__search">
             <svg class="ftb__search-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
-            <input type="text" id="filter-search" class="ftb__search-input" placeholder="Search by city, zip, or address..." autocomplete="off" />
+            <input type="text" id="filter-search" class="ftb__search-input" placeholder="Search by city, zip, address, or university..." autocomplete="off" />
             <div class="ftb__autocomplete" id="filter-dropdown"></div>
           </div>
         </div>
@@ -219,6 +240,15 @@ export class FilterManager {
   // ── Events ──────────────────────────────────────────
 
   _bindEvents() {
+    // ─ Target university selector ─
+    document.getElementById('filter-target').addEventListener('change', (e) => {
+      const uni = this.universities.find((u) => u.name === e.target.value);
+      if (uni) {
+        this._targetUniversity = uni;
+        if (this._onTargetChange) this._onTargetChange(uni);
+      }
+    });
+
     // ─ Search input + autocomplete ─
     const searchInput = document.getElementById('filter-search');
     const acDropdown = document.getElementById('filter-dropdown');
@@ -527,7 +557,7 @@ export class FilterManager {
     if (!matches.length) { this._hideAutocomplete(); return; }
 
     dropdown.innerHTML = matches.map((s, i) => `
-      <div class="ftb__ac-item" data-index="${i}" data-value="${s.searchValue}">
+      <div class="ftb__ac-item" data-index="${i}" data-value="${s.searchValue}" data-uni="${s.uniName || ''}">
         <svg class="ftb__ac-icon" viewBox="0 0 24 24" width="16" height="16"><path d="${s.icon}" fill="currentColor"/></svg>
         <div class="ftb__ac-text">
           <span class="ftb__ac-name">${this._highlightMatch(s.text, query)}</span>
@@ -540,7 +570,13 @@ export class FilterManager {
     dropdown.querySelectorAll('.ftb__ac-item').forEach((item) => {
       item.addEventListener('mousedown', (e) => {
         e.preventDefault();
-        this._selectSuggestion(item.dataset.value);
+        const uniName = item.dataset.uni;
+        if (uniName) {
+          // University selected → set as target
+          this._selectUniversitySuggestion(uniName);
+        } else {
+          this._selectSuggestion(item.dataset.value);
+        }
       });
     });
   }
@@ -572,6 +608,26 @@ export class FilterManager {
     this._hideAutocomplete();
     this._emitChange();
     this._emitSearchChange();
+  }
+
+  /** When a university is selected from autocomplete, set it as target and clear search. */
+  _selectUniversitySuggestion(uniName) {
+    const uni = this.universities.find((u) => u.name === uniName);
+    if (!uni) return;
+
+    // Update target
+    this._targetUniversity = uni;
+    document.getElementById('filter-target').value = uni.name;
+
+    // Clear search (university isn't a listing filter)
+    const searchInput = document.getElementById('filter-search');
+    searchInput.value = '';
+    this.state.searchQuery = '';
+    this._hideAutocomplete();
+    this._emitChange();
+
+    // Notify app.js of the target change
+    if (this._onTargetChange) this._onTargetChange(uni);
   }
 
   // ── Filtering logic ─────────────────────────────────
@@ -634,4 +690,6 @@ export class FilterManager {
 
   onChange(cb) { this._onChange = cb; }
   onSearchChange(cb) { this._onSearchChange = cb; }
+  onTargetChange(cb) { this._onTargetChange = cb; }
+  getTargetUniversity() { return this._targetUniversity; }
 }

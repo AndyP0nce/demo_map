@@ -34,9 +34,48 @@
   margin-bottom: 0;
 }
 
+/* ── Search + target row ─────────────────────────────── */
+.ftb__search-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.ftb__target {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border: 1.5px solid #006aff;
+  border-radius: 6px;
+  background: #f0f4ff;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.ftb__target-icon {
+  color: #006aff;
+  flex-shrink: 0;
+}
+
+.ftb__target-select {
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  color: #006aff;
+  cursor: pointer;
+  outline: none;
+  font-family: inherit;
+  padding: 6px 2px;
+  max-width: 150px;
+}
+
 /* ── Search input ────────────────────────────────────── */
 .ftb__search {
   position: relative;
+  flex: 1;
+  min-width: 0;
 }
 
 .ftb__search-input {

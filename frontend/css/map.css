@@ -126,6 +126,17 @@
   border-top-color: #0050cc;
 }
 
+/* Target university (selected school) – gold highlight */
+.uni-marker--target {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.35), 0 3px 10px rgba(0, 0, 0, 0.18);
+  z-index: 7;
+}
+
+.uni-marker--target::after {
+  border-top-color: #1a56db;
+}
+
 /* ── Google Maps InfoWindow overrides ─────────────── */
 /* Remove default padding Google adds */
 .gm-style-iw-c {

@@ -102,7 +102,7 @@ export class CardRenderer {
             ${listing.owner.name}
             ${listing.owner.verified ? '<span class="listing-card__verified">&#10003; Verified</span>' : ''}
           </span>
-          <span class="listing-card__distance">${listing.distanceFromCSUN} from CSUN</span>
+          <span class="listing-card__distance">${listing._distanceMi != null ? listing._distanceMi.toFixed(1) + ' mi' : listing.distanceFromCSUN} from ${listing._targetName || 'CSUN'}</span>
         </div>
       </div>`;
 

@@ -158,8 +158,8 @@ export class ListingModal {
             <span class="detail-modal__detail-value">${listing.available}</span>
           </div>
           <div class="detail-modal__detail-row">
-            <span class="detail-modal__detail-label">Distance from CSUN</span>
-            <span class="detail-modal__detail-value">${listing.distanceFromCSUN}</span>
+            <span class="detail-modal__detail-label">Distance from ${listing._targetName || 'CSUN'}</span>
+            <span class="detail-modal__detail-value">${listing._distanceMi != null ? listing._distanceMi.toFixed(1) + ' mi' : listing.distanceFromCSUN}</span>
           </div>
           <div class="detail-modal__detail-row">
             <span class="detail-modal__detail-label">Property Type</span>
