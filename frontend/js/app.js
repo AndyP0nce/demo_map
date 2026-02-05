@@ -1,7 +1,7 @@
 /**
  * app.js
  * ---------------------------------------------------
- * Entry point – ties the map, card, and filter modules together.
+ * Entry point – ties the map, card, filter, and modal modules together.
  *
  * Data flow:
  *   1. Map initializes centered on CSUN
@@ -11,10 +11,11 @@
  *   5. On filter change → visible + filtered listings → sidebar cards + marker visibility
  *   6. Hover card  → highlight marker + open info window
  *   7. Hover marker → highlight card + scroll into view
- *   8. Click card   → pan map to that listing
+ *   8. Click marker or card → open full-detail modal
+ *   9. Search address → drop temp pin on map
  *
  * This file does NOT contain rendering logic – that lives in
- * map.js, cards.js, and filters.js. This keeps each piece portable.
+ * map.js, cards.js, filters.js, and modal.js.
  * ---------------------------------------------------
  */
 
@@ -22,6 +23,7 @@ import { LISTINGS, CSUN } from './data/listings.js';
 import { MapManager } from './modules/map.js';
 import { CardRenderer } from './modules/cards.js';
 import { FilterManager } from './modules/filters.js';
+import { ListingModal } from './modules/modal.js';
 
 // ── Config ───────────────────────────────────────────
 const MAP_CENTER = { lat: CSUN.lat, lng: CSUN.lng };
@@ -31,6 +33,7 @@ const MAP_ZOOM = 13;
 const mapManager = new MapManager();
 const cardRenderer = new CardRenderer('listings-container', 'listings-count');
 const filterManager = new FilterManager('filter-container', LISTINGS);
+const modal = new ListingModal('detail-modal');
 
 function init() {
   // 1. Create the map
@@ -42,7 +45,7 @@ function init() {
   // 3. Add price-tag markers for every listing
   mapManager.addListingMarkers(LISTINGS);
 
-  // 4. Connect events between map ↔ cards ↔ filters
+  // 4. Connect events between map ↔ cards ↔ filters ↔ modal
   wireEvents();
 }
 
@@ -66,6 +69,16 @@ function refreshView() {
   mapManager.updateMarkerVisibility(passingIds);
 }
 
+/**
+ * Open the detail modal for a listing by id.
+ */
+function openModal(listingId) {
+  const listing = LISTINGS.find((l) => l.id === listingId);
+  if (listing) {
+    modal.open(listing);
+  }
+}
+
 function wireEvents() {
   // Map moved → refresh sidebar with only visible + filtered listings
   mapManager.onBoundsChange(() => {
@@ -77,13 +90,22 @@ function wireEvents() {
     refreshView();
   });
 
-  // Search query changed (debounced) → pan map to matching area + draw highlight
+  // Search query changed (debounced) → pan map + highlight + temp pin
   filterManager.onSearchChange((matchingListings) => {
     if (matchingListings.length > 0) {
       mapManager.fitBoundsToListings(matchingListings);
       mapManager.showSearchHighlight(matchingListings);
+
+      // If exactly one listing matches (address-level search), drop a pin
+      if (matchingListings.length === 1) {
+        const l = matchingListings[0];
+        mapManager.showSearchPin(l.lat, l.lng, l.address);
+      } else {
+        mapManager.clearSearchPin();
+      }
     } else {
       mapManager.clearSearchHighlight();
+      mapManager.clearSearchPin();
     }
   });
 
@@ -96,6 +118,11 @@ function wireEvents() {
     }
   });
 
+  // Marker clicked → open detail modal
+  mapManager.onMarkerClick((listingId) => {
+    openModal(listingId);
+  });
+
   // Card hovered → highlight matching marker + open info window
   cardRenderer.onCardHover((listingId, isHovering) => {
     if (isHovering) {
@@ -105,13 +132,9 @@ function wireEvents() {
     }
   });
 
-  // Card clicked → pan the map to that listing
+  // Card clicked → open detail modal
   cardRenderer.onCardClick((listingId) => {
-    const listing = LISTINGS.find((l) => l.id === listingId);
-    if (listing) {
-      mapManager.map.panTo({ lat: listing.lat, lng: listing.lng });
-      mapManager.showInfoWindow(listingId);
-    }
+    openModal(listingId);
   });
 }
 

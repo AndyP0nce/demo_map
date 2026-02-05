@@ -100,6 +100,8 @@ export class MapManager {
     this.activeInfoWindow = null;
     this.activeMarkerId = null;
     this._searchHighlight = null; // google.maps.Rectangle for search area
+    this._searchPin = null;       // google.maps.Marker for address search
+    this._csunInfoWindow = null;  // keep reference so we can close it
 
     // Callbacks set by app.js
     this._onBoundsChange = null;
@@ -160,7 +162,7 @@ export class MapManager {
       zIndex: 1000, // always on top of price markers
     });
 
-    const infoWindow = new google.maps.InfoWindow({
+    this._csunInfoWindow = new google.maps.InfoWindow({
       content: `
         <div style="padding:8px;font-family:sans-serif;">
           <strong style="font-size:14px;">${university.fullName}</strong><br>
@@ -168,7 +170,23 @@ export class MapManager {
         </div>`,
     });
 
-    marker.addListener('click', () => infoWindow.open(this.map, marker));
+    this._csunMarker = marker;
+
+    // Click toggles the CSUN info window open/closed
+    marker.addListener('click', () => {
+      // Close any listing info window first
+      this.hideInfoWindow();
+
+      if (this._csunInfoOpen) {
+        this._csunInfoWindow.close();
+        this._csunInfoOpen = false;
+      } else {
+        this._csunInfoWindow.open(this.map, marker);
+        this._csunInfoOpen = true;
+      }
+    });
+
+    this._csunInfoOpen = false;
   }
 
   // ── Listing markers ────────────────────────────────
@@ -238,6 +256,12 @@ export class MapManager {
   /** Open the InfoWindow for a listing and highlight its price marker. */
   showInfoWindow(listingId) {
     this.hideInfoWindow(); // close any existing one first
+
+    // Also close CSUN popup if open
+    if (this._csunInfoOpen) {
+      this._csunInfoWindow.close();
+      this._csunInfoOpen = false;
+    }
 
     const entry = this.priceMarkers.find((m) => m.listing.id === listingId);
     if (!entry) return;
@@ -332,6 +356,40 @@ export class MapManager {
     if (this._searchHighlight) {
       this._searchHighlight.setMap(null);
       this._searchHighlight = null;
+    }
+  }
+
+  /**
+   * Drop a temporary red pin marker at a specific location.
+   * Used when the user selects an address from the search autocomplete.
+   * @param {number} lat
+   * @param {number} lng
+   * @param {string} title – tooltip label
+   */
+  showSearchPin(lat, lng, title) {
+    this.clearSearchPin();
+    this._searchPin = new google.maps.Marker({
+      position: { lat, lng },
+      map: this.map,
+      title: title,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 9,
+        fillColor: '#e53935',
+        fillOpacity: 1,
+        strokeColor: '#ffffff',
+        strokeWeight: 2.5,
+      },
+      zIndex: 999,
+      animation: google.maps.Animation.DROP,
+    });
+  }
+
+  /** Remove the temporary search pin from the map. */
+  clearSearchPin() {
+    if (this._searchPin) {
+      this._searchPin.setMap(null);
+      this._searchPin = null;
     }
   }
 

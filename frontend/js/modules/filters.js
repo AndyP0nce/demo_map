@@ -486,12 +486,13 @@ export class FilterManager {
    */
   applyFilters(listings) {
     return listings.filter((listing) => {
-      // Search by city or zip
+      // Search by city, zip, or address
       if (this.state.searchQuery) {
         const city = this._parseCity(listing.address).toLowerCase();
         const zip = this._parseZip(listing.address);
+        const addr = listing.address.toLowerCase();
         const query = this.state.searchQuery;
-        if (!city.includes(query) && !zip.includes(query)) {
+        if (!city.includes(query) && !zip.includes(query) && !addr.includes(query)) {
           return false;
         }
       }
@@ -589,7 +590,8 @@ export class FilterManager {
     return this.listings.filter((listing) => {
       const city = this._parseCity(listing.address).toLowerCase();
       const zip = this._parseZip(listing.address);
-      return city.includes(query) || zip.includes(query);
+      const addr = listing.address.toLowerCase();
+      return city.includes(query) || zip.includes(query) || addr.includes(query);
     });
   }
 
