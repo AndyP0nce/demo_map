@@ -139,7 +139,7 @@ function wireEvents() {
   });
 
   // Search query changed (debounced) → pan map + highlight + temp pin
-  filterManager.onSearchChange((matchingListings) => {
+  filterManager.onSearchChange(async (matchingListings) => {
     if (matchingListings.length > 0) {
       mapManager.fitBoundsToListings(matchingListings);
       mapManager.showSearchHighlight(matchingListings);
@@ -152,9 +152,9 @@ function wireEvents() {
         mapManager.clearSearchPin();
       }
     } else {
-      // No listing matches — check if query matches a university name
       const query = filterManager.state.searchQuery;
       if (query) {
+        // Check university match first
         const uniMatch = UNIVERSITIES.find(
           (u) =>
             u.name.toLowerCase().includes(query) ||
@@ -166,10 +166,20 @@ function wireEvents() {
           mapManager.panTo(uniMatch.lat, uniMatch.lng, 14);
           return;
         }
+        // Fallback: geocode the free-text query (any city, zip, address)
+        mapManager.clearSearchHighlight();
+        mapManager.clearSearchPin();
+        await mapManager.geocodeQueryAndHighlight(query);
+      } else {
+        mapManager.clearSearchHighlight();
+        mapManager.clearSearchPin();
       }
-      mapManager.clearSearchHighlight();
-      mapManager.clearSearchPin();
     }
+  });
+
+  // Google Place selected from autocomplete → geocode by placeId and pan
+  filterManager.onPlaceSelect(async (placeId) => {
+    await mapManager.geocodePlaceAndHighlight(placeId);
   });
 
   // Marker hovered → highlight matching card

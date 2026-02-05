@@ -524,6 +524,81 @@ export class MapManager {
     });
   }
 
+  // ── Geocoding (unrestricted location search) ──────
+
+  /** @returns {google.maps.Geocoder} */
+  _getGeocoder() {
+    if (!this._geocoder) this._geocoder = new google.maps.Geocoder();
+    return this._geocoder;
+  }
+
+  /**
+   * Geocode a place by its Google Place ID, pan the map, and draw the
+   * blue highlight rectangle around the result area.
+   * @param {string} placeId
+   * @returns {Promise<boolean>} true if a result was found
+   */
+  async geocodePlaceAndHighlight(placeId) {
+    try {
+      const { results } = await this._getGeocoder().geocode({ placeId });
+      if (results && results[0]) {
+        this._showGeocodedResult(results[0]);
+        return true;
+      }
+    } catch (_) { /* ZERO_RESULTS or error */ }
+    return false;
+  }
+
+  /**
+   * Geocode a free-text query, pan the map, and draw the
+   * blue highlight rectangle around the result area.
+   * @param {string} query
+   * @returns {Promise<boolean>} true if a result was found
+   */
+  async geocodeQueryAndHighlight(query) {
+    try {
+      const { results } = await this._getGeocoder().geocode({ address: query });
+      if (results && results[0]) {
+        this._showGeocodedResult(results[0]);
+        return true;
+      }
+    } catch (_) { /* ZERO_RESULTS or error */ }
+    return false;
+  }
+
+  /**
+   * Given a geocoder result, pan + zoom the map and draw the highlight box.
+   * @param {google.maps.GeocoderResult} result
+   */
+  _showGeocodedResult(result) {
+    this.clearSearchHighlight();
+    this.clearSearchPin();
+
+    const bounds = result.geometry.viewport || result.geometry.bounds;
+    if (bounds) {
+      this.map.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
+      const ne = bounds.getNorthEast();
+      const sw = bounds.getSouthWest();
+      this._searchHighlight = new google.maps.Rectangle({
+        bounds: { north: ne.lat(), south: sw.lat(), east: ne.lng(), west: sw.lng() },
+        map: this.map,
+        fillColor: '#006aff',
+        fillOpacity: 0.08,
+        strokeColor: '#006aff',
+        strokeOpacity: 0.50,
+        strokeWeight: 2,
+        clickable: false,
+        zIndex: 0,
+      });
+    } else {
+      // Point result – just pan and drop a pin
+      const loc = result.geometry.location;
+      this.map.panTo(loc);
+      if (this.map.getZoom() < 14) this.map.setZoom(14);
+      this.showSearchPin(loc.lat(), loc.lng(), result.formatted_address || '');
+    }
+  }
+
   // ── Event registration (called by app.js) ──────────
 
   onBoundsChange(cb) {

@@ -550,12 +550,13 @@ export class FilterManager {
   // ── Autocomplete dropdown ───────────────────────────
 
   _showAutocomplete(query) {
+    if (!query || query.length < 2) { this._hideAutocomplete(); return; }
+
     const dropdown = document.getElementById('filter-dropdown');
     const matches = this._matchSuggestions(query);
     this._activeDropdownIndex = -1;
 
-    if (!matches.length) { this._hideAutocomplete(); return; }
-
+    // Render local matches (listings + universities)
     dropdown.innerHTML = matches.map((s, i) => `
       <div class="ftb__ac-item" data-index="${i}" data-value="${s.searchValue}" data-uni="${s.uniName || ''}">
         <svg class="ftb__ac-icon" viewBox="0 0 24 24" width="16" height="16"><path d="${s.icon}" fill="currentColor"/></svg>
@@ -567,18 +568,87 @@ export class FilterManager {
 
     dropdown.style.display = 'block';
 
+    // Attach click handlers for local items
     dropdown.querySelectorAll('.ftb__ac-item').forEach((item) => {
       item.addEventListener('mousedown', (e) => {
         e.preventDefault();
         const uniName = item.dataset.uni;
         if (uniName) {
-          // University selected → set as target
           this._selectUniversitySuggestion(uniName);
         } else {
           this._selectSuggestion(item.dataset.value);
         }
       });
     });
+
+    // Also fetch Google Places predictions (appended asynchronously)
+    this._fetchPlacePredictions(query, dropdown);
+  }
+
+  /**
+   * Fetch Google Places autocomplete predictions and append them
+   * below the local results in the dropdown.
+   */
+  _fetchPlacePredictions(query, dropdown) {
+    // Lazy-init the AutocompleteService
+    if (!this._placesService) {
+      this._placesService = new google.maps.places.AutocompleteService();
+    }
+
+    // Increment request counter to ignore stale responses
+    this._placesRequestId = (this._placesRequestId || 0) + 1;
+    const requestId = this._placesRequestId;
+
+    this._placesService.getPlacePredictions(
+      { input: query },
+      (predictions, status) => {
+        // Discard stale responses or if dropdown was already closed
+        if (requestId !== this._placesRequestId) return;
+        if (dropdown.style.display === 'none') return;
+        if (status !== google.maps.places.PlacesServiceStatus.OK || !predictions) {
+          // If there are no local results either, hide the dropdown
+          if (dropdown.children.length === 0) dropdown.style.display = 'none';
+          return;
+        }
+
+        // Add a "More places" separator if we had local results
+        if (dropdown.children.length > 0) {
+          const sep = document.createElement('div');
+          sep.className = 'ftb__ac-sep';
+          sep.textContent = 'More places';
+          dropdown.appendChild(sep);
+        }
+
+        // Append Google predictions
+        predictions.slice(0, 4).forEach((p) => {
+          const item = document.createElement('div');
+          item.className = 'ftb__ac-item ftb__ac-item--place';
+          item.dataset.placeId = p.place_id;
+          item.innerHTML = `
+            <svg class="ftb__ac-icon" viewBox="0 0 24 24" width="16" height="16">
+              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z" fill="currentColor"/>
+            </svg>
+            <div class="ftb__ac-text">
+              <span class="ftb__ac-name">${this._highlightMatch(p.structured_formatting.main_text, query)}</span>
+              <span class="ftb__ac-type">${p.structured_formatting.secondary_text || 'Google Maps'}</span>
+            </div>`;
+          item.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            this._selectPlaceSuggestion(p.place_id, p.description);
+          });
+          dropdown.appendChild(item);
+        });
+      },
+    );
+  }
+
+  /** Handle selection of a Google Places autocomplete suggestion. */
+  _selectPlaceSuggestion(placeId, description) {
+    const searchInput = document.getElementById('filter-search');
+    searchInput.value = description;
+    this.state.searchQuery = description.toLowerCase();
+    this._hideAutocomplete();
+    if (this._onPlaceSelect) this._onPlaceSelect(placeId, description);
   }
 
   _hideAutocomplete() {
@@ -691,5 +761,6 @@ export class FilterManager {
   onChange(cb) { this._onChange = cb; }
   onSearchChange(cb) { this._onSearchChange = cb; }
   onTargetChange(cb) { this._onTargetChange = cb; }
+  onPlaceSelect(cb) { this._onPlaceSelect = cb; }
   getTargetUniversity() { return this._targetUniversity; }
 }
