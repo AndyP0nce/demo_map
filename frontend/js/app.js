@@ -182,6 +182,14 @@ function wireEvents() {
     await mapManager.geocodePlaceAndHighlight(placeId);
   });
 
+  // University marker double-clicked → set as target
+  mapManager.onUniversityDblClick((university) => {
+    filterManager.setTargetUniversity(university);
+    recomputeDistances(university);
+    mapManager.setTargetUniversity(university.name);
+    refreshView();
+  });
+
   // Marker hovered → highlight matching card
   mapManager.onMarkerHover((listingId, isHovering) => {
     if (isHovering) {

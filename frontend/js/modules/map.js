@@ -106,6 +106,7 @@ class UniversityMarkerOverlay extends google.maps.OverlayView {
     this.onMouseOver = null;
     this.onMouseOut = null;
     this.onClick = null;
+    this.onDblClick = null;
     this.setMap(map);
   }
 
@@ -121,6 +122,7 @@ class UniversityMarkerOverlay extends google.maps.OverlayView {
     this.div.addEventListener('mouseover', () => { if (this.onMouseOver) this.onMouseOver(); });
     this.div.addEventListener('mouseout', () => { if (this.onMouseOut) this.onMouseOut(); });
     this.div.addEventListener('click', () => { if (this.onClick) this.onClick(); });
+    this.div.addEventListener('dblclick', (e) => { e.stopPropagation(); if (this.onDblClick) this.onDblClick(); });
 
     const panes = this.getPanes();
     panes.overlayMouseTarget.appendChild(this.div);
@@ -165,6 +167,7 @@ export class MapManager {
     this._onBoundsChange = null;
     this._onMarkerHover = null;
     this._onMarkerClick = null;
+    this._onUniDblClick = null;
   }
 
   /**
@@ -256,6 +259,11 @@ export class MapManager {
         overlay.setActive(true);
         entry.isOpen = true;
       }
+    };
+
+    // Double-click → set as target university
+    overlay.onDblClick = () => {
+      if (this._onUniDblClick) this._onUniDblClick(university);
     };
   }
 
@@ -609,5 +617,8 @@ export class MapManager {
   }
   onMarkerClick(cb) {
     this._onMarkerClick = cb;
+  }
+  onUniversityDblClick(cb) {
+    this._onUniDblClick = cb;
   }
 }

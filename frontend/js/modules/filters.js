@@ -758,6 +758,12 @@ export class FilterManager {
     }, 400);
   }
 
+  /** Programmatically set the target university (e.g. from map double-click). */
+  setTargetUniversity(uni) {
+    this._targetUniversity = uni;
+    document.getElementById('filter-target').value = uni.name;
+  }
+
   onChange(cb) { this._onChange = cb; }
   onSearchChange(cb) { this._onSearchChange = cb; }
   onTargetChange(cb) { this._onTargetChange = cb; }
