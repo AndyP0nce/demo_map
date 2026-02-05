@@ -99,6 +99,7 @@ export class MapManager {
     this.priceMarkers = []; // { overlay, infoWindow, listing }
     this.activeInfoWindow = null;
     this.activeMarkerId = null;
+    this._searchHighlight = null; // google.maps.Rectangle for search area
 
     // Callbacks set by app.js
     this._onBoundsChange = null;
@@ -270,6 +271,68 @@ export class MapManager {
 
   unhighlightMarker() {
     this.hideInfoWindow();
+  }
+
+  // ── Search-driven map pan & highlight ───────────────
+
+  /**
+   * Pan and zoom the map to fit a set of listings.
+   * Adds padding so markers aren't flush against the edge.
+   * @param {Array} listings
+   */
+  fitBoundsToListings(listings) {
+    if (!listings.length) return;
+
+    const bounds = new google.maps.LatLngBounds();
+    listings.forEach((l) => bounds.extend({ lat: l.lat, lng: l.lng }));
+
+    // For a single listing, just pan + zoom rather than fitBounds (which over-zooms)
+    if (listings.length === 1) {
+      this.map.panTo(bounds.getCenter());
+      if (this.map.getZoom() < 14) this.map.setZoom(14);
+    } else {
+      this.map.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
+    }
+  }
+
+  /**
+   * Draw a translucent blue rectangle around the bounding box of the given listings.
+   * If a previous highlight exists it is removed first.
+   * @param {Array} listings
+   */
+  showSearchHighlight(listings) {
+    this.clearSearchHighlight();
+    if (!listings.length) return;
+
+    // Build the bounding box
+    const lats = listings.map((l) => l.lat);
+    const lngs = listings.map((l) => l.lng);
+    const PAD = 0.004; // ~400 m of padding around the edges
+
+    this._searchHighlight = new google.maps.Rectangle({
+      bounds: {
+        north: Math.max(...lats) + PAD,
+        south: Math.min(...lats) - PAD,
+        east: Math.max(...lngs) + PAD,
+        west: Math.min(...lngs) - PAD,
+      },
+      map: this.map,
+      fillColor: '#006aff',
+      fillOpacity: 0.08,
+      strokeColor: '#006aff',
+      strokeOpacity: 0.50,
+      strokeWeight: 2,
+      clickable: false,
+      zIndex: 0,
+    });
+  }
+
+  /** Remove the search highlight rectangle from the map. */
+  clearSearchHighlight() {
+    if (this._searchHighlight) {
+      this._searchHighlight.setMap(null);
+      this._searchHighlight = null;
+    }
   }
 
   // ── Marker visibility (filter integration) ─────────

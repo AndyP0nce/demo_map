@@ -77,6 +77,16 @@ function wireEvents() {
     refreshView();
   });
 
+  // Search query changed (debounced) → pan map to matching area + draw highlight
+  filterManager.onSearchChange((matchingListings) => {
+    if (matchingListings.length > 0) {
+      mapManager.fitBoundsToListings(matchingListings);
+      mapManager.showSearchHighlight(matchingListings);
+    } else {
+      mapManager.clearSearchHighlight();
+    }
+  });
+
   // Marker hovered → highlight matching card
   mapManager.onMarkerHover((listingId, isHovering) => {
     if (isHovering) {

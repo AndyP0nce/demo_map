@@ -26,6 +26,8 @@ export class FilterManager {
     this.container = document.getElementById(containerId);
     this.listings = listings;
     this._onChange = null;
+    this._onSearchChange = null;
+    this._searchDebounceTimer = null;
 
     // Derive unique values from listings
     this.allTypes = [...new Set(listings.map((l) => l.type))].sort();
@@ -188,6 +190,7 @@ export class FilterManager {
     searchInput.addEventListener('input', () => {
       this.state.searchQuery = searchInput.value.trim().toLowerCase();
       this._emitChange();
+      this._emitSearchChange();
     });
 
     // Filter toggle
@@ -293,6 +296,7 @@ export class FilterManager {
     });
 
     this._emitChange();
+    this._emitSearchChange();
   }
 
   // ── Filtering logic ─────────────────────────────────
@@ -395,6 +399,22 @@ export class FilterManager {
     }
   }
 
+  // ── Search helpers ───────────────────────────────────
+
+  /**
+   * Return all listings whose city or zip matches the current search query.
+   * This ignores other filters – it's used to decide where the map should pan.
+   */
+  getSearchMatches() {
+    if (!this.state.searchQuery) return [];
+    const query = this.state.searchQuery;
+    return this.listings.filter((listing) => {
+      const city = this._parseCity(listing.address).toLowerCase();
+      const zip = this._parseZip(listing.address);
+      return city.includes(query) || zip.includes(query);
+    });
+  }
+
   // ── Change notification ─────────────────────────────
 
   _emitChange() {
@@ -402,7 +422,22 @@ export class FilterManager {
     if (this._onChange) this._onChange();
   }
 
+  /** Debounced search-specific callback (400ms) so the map doesn't jump on every keystroke. */
+  _emitSearchChange() {
+    clearTimeout(this._searchDebounceTimer);
+    this._searchDebounceTimer = setTimeout(() => {
+      if (this._onSearchChange) {
+        this._onSearchChange(this.getSearchMatches());
+      }
+    }, 400);
+  }
+
   onChange(cb) {
     this._onChange = cb;
+  }
+
+  /** Register a callback for search-specific changes (debounced). */
+  onSearchChange(cb) {
+    this._onSearchChange = cb;
   }
 }
