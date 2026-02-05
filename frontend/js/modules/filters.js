@@ -1,19 +1,15 @@
 /**
  * filters.js
  * ---------------------------------------------------
- * Renders a collapsible filter / search bar above the
- * listing cards in the sidebar panel.
+ * Horizontal filter toolbar that sits above the map.
  *
  * Features:
- *   - Search by city name or zip code
- *   - Property type checkboxes
- *   - Bedrooms & bathrooms min selectors
- *   - Price range (min / max)
- *   - Sqft range (min / max)
- *   - Amenity checkboxes
+ *   - Search bar with autocomplete (city, zip, address, campus)
+ *   - Dropdown filter buttons (Property Type, Beds, Baths, Price, Sqft, Amenities)
+ *   - Active filter chips below the buttons with × to remove
  *
- * Reads the LISTINGS data to dynamically populate
- * filter options (types, amenities, cities, zips).
+ * Each filter category is a button that opens a small
+ * dropdown panel. Only one panel open at a time.
  * ---------------------------------------------------
  */
 
@@ -28,6 +24,7 @@ export class FilterManager {
     this._onChange = null;
     this._onSearchChange = null;
     this._searchDebounceTimer = null;
+    this._currentPanel = null; // currently open dropdown name
 
     // Derive unique values from listings
     this.allTypes = [...new Set(listings.map((l) => l.type))].sort();
@@ -41,14 +38,14 @@ export class FilterManager {
     // Current filter state
     this.state = {
       searchQuery: '',
-      types: new Set(),        // empty = all
+      types: new Set(),
       minBeds: 0,
       minBaths: 0,
       priceMin: 0,
       priceMax: Infinity,
       sqftMin: 0,
       sqftMax: Infinity,
-      amenities: new Set(),    // empty = any
+      amenities: new Set(),
     };
 
     this._render();
@@ -57,64 +54,54 @@ export class FilterManager {
 
   // ── Parsing helpers ─────────────────────────────────
 
-  /** Extract city name from address like "9145 Reseda Blvd, Northridge, CA 91324" */
   _parseCity(address) {
     const parts = address.split(',');
     return parts.length >= 2 ? parts[1].trim() : '';
   }
 
-  /** Extract zip code from address */
   _parseZip(address) {
     const match = address.match(/\d{5}$/);
     return match ? match[0] : '';
   }
 
-  // ── Autocomplete catalog ─────────────────────────────
+  // ── Autocomplete catalog ────────────────────────────
 
-  /**
-   * Build a flat array of suggestion objects from listings data.
-   * Each has { text, type, icon, searchValue }.
-   */
   _buildSuggestions() {
     const suggestions = [];
 
-    // Campus
     suggestions.push({
       text: 'CSUN - California State University, Northridge',
       type: 'Campus',
-      icon: 'M12 3L1 9l4 2.18v6L12 21l7-3.82v-6L23 9l-11-6z', // graduation cap simplified
+      icon: 'M12 3L1 9l4 2.18v6L12 21l7-3.82v-6L23 9l-11-6z',
       searchValue: 'northridge',
     });
 
-    // Cities – with listing count
     this.allCities.forEach((city) => {
       const count = this.listings.filter((l) => this._parseCity(l.address) === city).length;
       suggestions.push({
         text: city,
         type: `City · ${count} listing${count !== 1 ? 's' : ''}`,
-        icon: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z', // pin
+        icon: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z',
         searchValue: city.toLowerCase(),
       });
     });
 
-    // Zip codes – with city name
     this.allZips.forEach((zip) => {
       const sample = this.listings.find((l) => this._parseZip(l.address) === zip);
       const city = sample ? this._parseCity(sample.address) : '';
       suggestions.push({
         text: zip,
         type: `Zip Code · ${city}`,
-        icon: 'M20 6H10v2h10V6zm0 4H10v2h10v-2zm0 4H10v2h10v-2zM4 6h4v12H4z', // list
+        icon: 'M20 6H10v2h10V6zm0 4H10v2h10v-2zm0 4H10v2h10v-2zM4 6h4v12H4z',
         searchValue: zip,
       });
     });
 
-    // Addresses (street + city) – one per listing
     this.listings.forEach((l) => {
       suggestions.push({
         text: l.address,
         type: 'Address',
-        icon: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z', // house
+        icon: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z',
         searchValue: l.address.toLowerCase(),
       });
     });
@@ -122,9 +109,6 @@ export class FilterManager {
     return suggestions;
   }
 
-  /**
-   * Return up to `limit` suggestions matching the query string.
-   */
   _matchSuggestions(query, limit = 6) {
     if (!query) return [];
     const q = query.toLowerCase();
@@ -136,189 +120,176 @@ export class FilterManager {
   // ── Render ──────────────────────────────────────────
 
   _render() {
+    const chevron = '<svg class="ftb__chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>';
+
     this.container.innerHTML = `
-      <div class="filter-bar">
-        <!-- Search -->
-        <div class="filter-bar__search">
-          <input
-            type="text"
-            id="filter-search"
-            class="filter-bar__input"
-            placeholder="Search by city or zip code..."
-            autocomplete="off"
-          />
-          <svg class="filter-bar__search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"/>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <div class="filter-bar__dropdown" id="filter-dropdown"></div>
+      <div class="ftb">
+        <!-- Row 1: Search bar -->
+        <div class="ftb__row">
+          <div class="ftb__search">
+            <svg class="ftb__search-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" id="filter-search" class="ftb__search-input" placeholder="Search by city, zip, or address..." autocomplete="off" />
+            <div class="ftb__autocomplete" id="filter-dropdown"></div>
+          </div>
         </div>
 
-        <!-- Toggle button for advanced filters -->
-        <button class="filter-bar__toggle" id="filter-toggle">
-          <span class="filter-bar__toggle-text">Filters</span>
-          <span class="filter-bar__badge" id="filter-badge" style="display:none;">0</span>
-          <svg class="filter-bar__chevron" id="filter-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="6 9 12 15 18 9"/>
-          </svg>
-        </button>
-
-        <!-- Collapsible filter panel -->
-        <div class="filter-bar__panel" id="filter-panel" style="display:none;">
-
-          <!-- Property Type -->
-          <div class="filter-bar__section">
-            <div class="filter-bar__label">Property Type</div>
-            <div class="filter-bar__checks" id="filter-types">
-              ${this.allTypes
-                .map(
-                  (t) => `
-                <label class="filter-bar__check">
-                  <input type="checkbox" value="${t}" data-filter="type" />
-                  <span>${t}</span>
-                </label>`,
-                )
-                .join('')}
-            </div>
-          </div>
-
-          <!-- Bedrooms -->
-          <div class="filter-bar__section">
-            <div class="filter-bar__label">Bedrooms</div>
-            <div class="filter-bar__range-row">
-              <select id="filter-beds" class="filter-bar__select">
-                <option value="0">Any</option>
-                <option value="1">1+</option>
-                <option value="2">2+</option>
-                <option value="3">3+</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Bathrooms -->
-          <div class="filter-bar__section">
-            <div class="filter-bar__label">Bathrooms</div>
-            <div class="filter-bar__range-row">
-              <select id="filter-baths" class="filter-bar__select">
-                <option value="0">Any</option>
-                <option value="1">1+</option>
-                <option value="2">2+</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Price Range -->
-          <div class="filter-bar__section">
-            <div class="filter-bar__label">Price Range</div>
-            <div class="filter-bar__range-row">
-              <input type="number" id="filter-price-min" class="filter-bar__number" placeholder="Min" min="0" step="50" />
-              <span class="filter-bar__range-sep">–</span>
-              <input type="number" id="filter-price-max" class="filter-bar__number" placeholder="Max" min="0" step="50" />
-            </div>
-          </div>
-
-          <!-- Sqft Range -->
-          <div class="filter-bar__section">
-            <div class="filter-bar__label">Square Feet</div>
-            <div class="filter-bar__range-row">
-              <input type="number" id="filter-sqft-min" class="filter-bar__number" placeholder="Min" min="0" step="50" />
-              <span class="filter-bar__range-sep">–</span>
-              <input type="number" id="filter-sqft-max" class="filter-bar__number" placeholder="Max" min="0" step="50" />
-            </div>
-          </div>
-
-          <!-- Amenities -->
-          <div class="filter-bar__section">
-            <div class="filter-bar__label">Amenities</div>
-            <div class="filter-bar__checks filter-bar__checks--wrap" id="filter-amenities">
-              ${this.allAmenities
-                .map(
-                  (a) => `
-                <label class="filter-bar__check">
-                  <input type="checkbox" value="${a}" data-filter="amenity" />
-                  <span>${a}</span>
-                </label>`,
-                )
-                .join('')}
-            </div>
-          </div>
-
-          <!-- Reset button -->
-          <button class="filter-bar__reset" id="filter-reset">Reset All Filters</button>
+        <!-- Row 2: Filter dropdown buttons -->
+        <div class="ftb__row ftb__buttons">
+          ${this._renderBtn('type', 'Property Type', chevron)}
+          ${this._renderBtn('beds', 'Beds', chevron)}
+          ${this._renderBtn('baths', 'Baths', chevron)}
+          ${this._renderBtn('price', 'Price', chevron)}
+          ${this._renderBtn('sqft', 'Sqft', chevron)}
+          ${this._renderBtn('amenities', 'Amenities', chevron)}
         </div>
+
+        <!-- Dropdown panels (positioned absolutely below their button) -->
+        ${this._renderTypePanel()}
+        ${this._renderBedsPanel()}
+        ${this._renderBathsPanel()}
+        ${this._renderPricePanel()}
+        ${this._renderSqftPanel()}
+        ${this._renderAmenitiesPanel()}
+
+        <!-- Row 3: Active filter chips -->
+        <div class="ftb__chips" id="filter-chips"></div>
       </div>
     `;
+  }
+
+  _renderBtn(name, label, chevron) {
+    return `
+      <div class="ftb__btn-wrap" data-panel="${name}">
+        <button class="ftb__btn" data-panel="${name}">
+          <span>${label}</span>${chevron}
+        </button>
+      </div>`;
+  }
+
+  _renderTypePanel() {
+    const checks = this.allTypes.map((t) => `
+      <label class="ftb__check"><input type="checkbox" value="${t}" data-filter="type"/><span>${t}</span></label>`).join('');
+    return `<div class="ftb__panel" id="panel-type">${checks}</div>`;
+  }
+
+  _renderBedsPanel() {
+    return `<div class="ftb__panel" id="panel-beds">
+      <select id="filter-beds" class="ftb__select">
+        <option value="0">Any</option><option value="1">1+</option><option value="2">2+</option><option value="3">3+</option>
+      </select>
+    </div>`;
+  }
+
+  _renderBathsPanel() {
+    return `<div class="ftb__panel" id="panel-baths">
+      <select id="filter-baths" class="ftb__select">
+        <option value="0">Any</option><option value="1">1+</option><option value="2">2+</option>
+      </select>
+    </div>`;
+  }
+
+  _renderPricePanel() {
+    return `<div class="ftb__panel" id="panel-price">
+      <div class="ftb__range">
+        <input type="number" id="filter-price-min" class="ftb__num" placeholder="Min $" min="0" step="50"/>
+        <span class="ftb__range-sep">&ndash;</span>
+        <input type="number" id="filter-price-max" class="ftb__num" placeholder="Max $" min="0" step="50"/>
+      </div>
+    </div>`;
+  }
+
+  _renderSqftPanel() {
+    return `<div class="ftb__panel" id="panel-sqft">
+      <div class="ftb__range">
+        <input type="number" id="filter-sqft-min" class="ftb__num" placeholder="Min" min="0" step="50"/>
+        <span class="ftb__range-sep">&ndash;</span>
+        <input type="number" id="filter-sqft-max" class="ftb__num" placeholder="Max" min="0" step="50"/>
+      </div>
+    </div>`;
+  }
+
+  _renderAmenitiesPanel() {
+    const checks = this.allAmenities.map((a) => `
+      <label class="ftb__check"><input type="checkbox" value="${a}" data-filter="amenity"/><span>${a}</span></label>`).join('');
+    return `<div class="ftb__panel ftb__panel--wide" id="panel-amenities">${checks}</div>`;
   }
 
   // ── Events ──────────────────────────────────────────
 
   _bindEvents() {
-    // Search input + autocomplete
+    // ─ Search input + autocomplete ─
     const searchInput = document.getElementById('filter-search');
-    const dropdown = document.getElementById('filter-dropdown');
+    const acDropdown = document.getElementById('filter-dropdown');
     this._activeDropdownIndex = -1;
 
     searchInput.addEventListener('input', () => {
       this.state.searchQuery = searchInput.value.trim().toLowerCase();
-      this._showDropdown(searchInput.value.trim());
+      this._showAutocomplete(searchInput.value.trim());
       this._emitChange();
       this._emitSearchChange();
     });
 
     searchInput.addEventListener('focus', () => {
-      if (searchInput.value.trim()) {
-        this._showDropdown(searchInput.value.trim());
-      }
+      this._closeAllPanels();
+      if (searchInput.value.trim()) this._showAutocomplete(searchInput.value.trim());
     });
 
-    // Keyboard navigation inside dropdown
     searchInput.addEventListener('keydown', (e) => {
-      const items = dropdown.querySelectorAll('.filter-bar__dropdown-item');
+      const items = acDropdown.querySelectorAll('.ftb__ac-item');
       if (!items.length) return;
-
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         this._activeDropdownIndex = Math.min(this._activeDropdownIndex + 1, items.length - 1);
-        this._highlightDropdownItem(items);
+        this._highlightAcItem(items);
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         this._activeDropdownIndex = Math.max(this._activeDropdownIndex - 1, 0);
-        this._highlightDropdownItem(items);
+        this._highlightAcItem(items);
       } else if (e.key === 'Enter' && this._activeDropdownIndex >= 0) {
         e.preventDefault();
         items[this._activeDropdownIndex].click();
       } else if (e.key === 'Escape') {
-        this._hideDropdown();
+        this._hideAutocomplete();
         searchInput.blur();
       }
     });
 
-    // Close dropdown when clicking outside
+    // ─ Dropdown button toggles ─
+    this.container.querySelectorAll('.ftb__btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this._hideAutocomplete();
+        const name = btn.dataset.panel;
+        if (this._currentPanel === name) {
+          this._closeAllPanels();
+        } else {
+          this._showPanel(name);
+        }
+      });
+    });
+
+    // ─ Close panels / autocomplete on outside click ─
     document.addEventListener('click', (e) => {
-      if (!this.container.querySelector('.filter-bar__search').contains(e.target)) {
-        this._hideDropdown();
+      if (!this.container.contains(e.target)) {
+        this._closeAllPanels();
+        this._hideAutocomplete();
       }
     });
 
-    // Filter toggle
-    const toggleBtn = document.getElementById('filter-toggle');
-    const panel = document.getElementById('filter-panel');
-    const chevron = document.getElementById('filter-chevron');
-    toggleBtn.addEventListener('click', () => {
-      const isOpen = panel.style.display !== 'none';
-      panel.style.display = isOpen ? 'none' : 'block';
-      chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
-      toggleBtn.classList.toggle('filter-bar__toggle--active', !isOpen);
+    // Prevent panel clicks from closing themselves
+    this.container.querySelectorAll('.ftb__panel').forEach((panel) => {
+      panel.addEventListener('click', (e) => e.stopPropagation());
     });
 
+    // ─ Filter controls inside panels ─
     // Type checkboxes
     this.container.querySelectorAll('[data-filter="type"]').forEach((cb) => {
       cb.addEventListener('change', () => {
-        if (cb.checked) {
-          this.state.types.add(cb.value);
-        } else {
-          this.state.types.delete(cb.value);
-        }
+        cb.checked ? this.state.types.add(cb.value) : this.state.types.delete(cb.value);
+        this._updateChips();
+        this._updateButtonStates();
         this._emitChange();
       });
     });
@@ -326,126 +297,196 @@ export class FilterManager {
     // Amenity checkboxes
     this.container.querySelectorAll('[data-filter="amenity"]').forEach((cb) => {
       cb.addEventListener('change', () => {
-        if (cb.checked) {
-          this.state.amenities.add(cb.value);
-        } else {
-          this.state.amenities.delete(cb.value);
-        }
+        cb.checked ? this.state.amenities.add(cb.value) : this.state.amenities.delete(cb.value);
+        this._updateChips();
+        this._updateButtonStates();
         this._emitChange();
       });
     });
 
-    // Bedrooms select
+    // Beds
     document.getElementById('filter-beds').addEventListener('change', (e) => {
       this.state.minBeds = parseInt(e.target.value, 10);
+      this._updateChips();
+      this._updateButtonStates();
       this._emitChange();
     });
 
-    // Bathrooms select
+    // Baths
     document.getElementById('filter-baths').addEventListener('change', (e) => {
       this.state.minBaths = parseInt(e.target.value, 10);
+      this._updateChips();
+      this._updateButtonStates();
       this._emitChange();
     });
 
-    // Price range
-    const priceMin = document.getElementById('filter-price-min');
-    const priceMax = document.getElementById('filter-price-max');
-    priceMin.addEventListener('input', () => {
-      this.state.priceMin = priceMin.value ? parseInt(priceMin.value, 10) : 0;
+    // Price
+    document.getElementById('filter-price-min').addEventListener('input', (e) => {
+      this.state.priceMin = e.target.value ? parseInt(e.target.value, 10) : 0;
+      this._updateChips();
+      this._updateButtonStates();
       this._emitChange();
     });
-    priceMax.addEventListener('input', () => {
-      this.state.priceMax = priceMax.value ? parseInt(priceMax.value, 10) : Infinity;
-      this._emitChange();
-    });
-
-    // Sqft range
-    const sqftMin = document.getElementById('filter-sqft-min');
-    const sqftMax = document.getElementById('filter-sqft-max');
-    sqftMin.addEventListener('input', () => {
-      this.state.sqftMin = sqftMin.value ? parseInt(sqftMin.value, 10) : 0;
-      this._emitChange();
-    });
-    sqftMax.addEventListener('input', () => {
-      this.state.sqftMax = sqftMax.value ? parseInt(sqftMax.value, 10) : Infinity;
+    document.getElementById('filter-price-max').addEventListener('input', (e) => {
+      this.state.priceMax = e.target.value ? parseInt(e.target.value, 10) : Infinity;
+      this._updateChips();
+      this._updateButtonStates();
       this._emitChange();
     });
 
-    // Reset
-    document.getElementById('filter-reset').addEventListener('click', () => {
-      this._resetAll();
+    // Sqft
+    document.getElementById('filter-sqft-min').addEventListener('input', (e) => {
+      this.state.sqftMin = e.target.value ? parseInt(e.target.value, 10) : 0;
+      this._updateChips();
+      this._updateButtonStates();
+      this._emitChange();
+    });
+    document.getElementById('filter-sqft-max').addEventListener('input', (e) => {
+      this.state.sqftMax = e.target.value ? parseInt(e.target.value, 10) : Infinity;
+      this._updateChips();
+      this._updateButtonStates();
+      this._emitChange();
     });
   }
 
-  // ── Autocomplete dropdown ────────────────────────────
+  // ── Dropdown panel management ───────────────────────
 
-  _showDropdown(query) {
-    const dropdown = document.getElementById('filter-dropdown');
-    const matches = this._matchSuggestions(query);
-    this._activeDropdownIndex = -1;
+  _showPanel(name) {
+    this._closeAllPanels();
+    const panel = document.getElementById(`panel-${name}`);
+    const btn = this.container.querySelector(`.ftb__btn-wrap[data-panel="${name}"]`);
+    if (panel && btn) {
+      panel.classList.add('ftb__panel--open');
+      btn.querySelector('.ftb__btn').classList.add('ftb__btn--active');
 
-    if (!matches.length) {
-      this._hideDropdown();
+      // Position the panel below its button
+      const btnRect = btn.getBoundingClientRect();
+      const containerRect = this.container.getBoundingClientRect();
+      panel.style.top = (btnRect.bottom - containerRect.top) + 'px';
+      panel.style.left = (btnRect.left - containerRect.left) + 'px';
+    }
+    this._currentPanel = name;
+  }
+
+  _closeAllPanels() {
+    this.container.querySelectorAll('.ftb__panel').forEach((p) => p.classList.remove('ftb__panel--open'));
+    this.container.querySelectorAll('.ftb__btn').forEach((b) => b.classList.remove('ftb__btn--active'));
+    this._currentPanel = null;
+  }
+
+  // ── Button active states ────────────────────────────
+
+  _updateButtonStates() {
+    const setActive = (name, active) => {
+      const wrap = this.container.querySelector(`.ftb__btn-wrap[data-panel="${name}"]`);
+      if (wrap) wrap.querySelector('.ftb__btn').classList.toggle('ftb__btn--has-value', active);
+    };
+    setActive('type', this.state.types.size > 0);
+    setActive('beds', this.state.minBeds > 0);
+    setActive('baths', this.state.minBaths > 0);
+    setActive('price', this.state.priceMin > 0 || this.state.priceMax < Infinity);
+    setActive('sqft', this.state.sqftMin > 0 || this.state.sqftMax < Infinity);
+    setActive('amenities', this.state.amenities.size > 0);
+  }
+
+  // ── Chips ───────────────────────────────────────────
+
+  _updateChips() {
+    const chips = this._getActiveChips();
+    const container = document.getElementById('filter-chips');
+    if (!chips.length) {
+      container.innerHTML = '';
       return;
     }
 
-    dropdown.innerHTML = matches
-      .map(
-        (s, i) => `
-        <div class="filter-bar__dropdown-item" data-index="${i}" data-value="${s.searchValue}">
-          <svg class="filter-bar__dropdown-icon" viewBox="0 0 24 24" width="16" height="16">
-            <path d="${s.icon}" fill="currentColor"/>
-          </svg>
-          <div class="filter-bar__dropdown-text">
-            <span class="filter-bar__dropdown-name">${this._highlightMatch(s.text, query)}</span>
-            <span class="filter-bar__dropdown-type">${s.type}</span>
-          </div>
-        </div>`,
-      )
-      .join('');
+    container.innerHTML = chips.map((c) =>
+      `<span class="ftb__chip" data-key="${c.key}" data-value="${c.value || ''}">
+        ${c.label}
+        <button class="ftb__chip-x" aria-label="Remove">&times;</button>
+      </span>`
+    ).join('') +
+    `<button class="ftb__chip ftb__chip--reset" id="chip-reset-all">Clear all</button>`;
 
-    dropdown.style.display = 'block';
-
-    // Bind click on each suggestion
-    dropdown.querySelectorAll('.filter-bar__dropdown-item').forEach((item) => {
-      item.addEventListener('mousedown', (e) => {
-        e.preventDefault(); // keep focus on input
-        this._selectSuggestion(item.dataset.value);
+    // Bind chip remove buttons
+    container.querySelectorAll('.ftb__chip-x').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const chip = btn.parentElement;
+        this._removeFilter(chip.dataset.key, chip.dataset.value);
       });
     });
+
+    const resetBtn = document.getElementById('chip-reset-all');
+    if (resetBtn) resetBtn.addEventListener('click', () => this._resetAll());
   }
 
-  _hideDropdown() {
-    const dropdown = document.getElementById('filter-dropdown');
-    dropdown.style.display = 'none';
-    dropdown.innerHTML = '';
-    this._activeDropdownIndex = -1;
+  _getActiveChips() {
+    const chips = [];
+
+    for (const type of this.state.types) {
+      chips.push({ label: type, key: 'type', value: type });
+    }
+    if (this.state.minBeds > 0) {
+      chips.push({ label: `${this.state.minBeds}+ Beds`, key: 'beds' });
+    }
+    if (this.state.minBaths > 0) {
+      chips.push({ label: `${this.state.minBaths}+ Baths`, key: 'baths' });
+    }
+    if (this.state.priceMin > 0 && this.state.priceMax < Infinity) {
+      chips.push({ label: `$${this.state.priceMin.toLocaleString()} – $${this.state.priceMax.toLocaleString()}`, key: 'price' });
+    } else if (this.state.priceMin > 0) {
+      chips.push({ label: `$${this.state.priceMin.toLocaleString()}+`, key: 'price' });
+    } else if (this.state.priceMax < Infinity) {
+      chips.push({ label: `Up to $${this.state.priceMax.toLocaleString()}`, key: 'price' });
+    }
+    if (this.state.sqftMin > 0 && this.state.sqftMax < Infinity) {
+      chips.push({ label: `${this.state.sqftMin} – ${this.state.sqftMax} sqft`, key: 'sqft' });
+    } else if (this.state.sqftMin > 0) {
+      chips.push({ label: `${this.state.sqftMin}+ sqft`, key: 'sqft' });
+    } else if (this.state.sqftMax < Infinity) {
+      chips.push({ label: `Up to ${this.state.sqftMax} sqft`, key: 'sqft' });
+    }
+    for (const amenity of this.state.amenities) {
+      chips.push({ label: amenity, key: 'amenity', value: amenity });
+    }
+
+    return chips;
   }
 
-  _highlightDropdownItem(items) {
-    items.forEach((el, i) => {
-      el.classList.toggle('filter-bar__dropdown-item--active', i === this._activeDropdownIndex);
-    });
-  }
-
-  /** Bold the portion of `text` that matches `query`. */
-  _highlightMatch(text, query) {
-    if (!query) return text;
-    const idx = text.toLowerCase().indexOf(query.toLowerCase());
-    if (idx === -1) return text;
-    const before = text.slice(0, idx);
-    const match = text.slice(idx, idx + query.length);
-    const after = text.slice(idx + query.length);
-    return `${before}<strong>${match}</strong>${after}`;
-  }
-
-  _selectSuggestion(value) {
-    const searchInput = document.getElementById('filter-search');
-    searchInput.value = value;
-    this.state.searchQuery = value.toLowerCase();
-    this._hideDropdown();
+  _removeFilter(key, value) {
+    switch (key) {
+      case 'type':
+        this.state.types.delete(value);
+        this.container.querySelector(`[data-filter="type"][value="${value}"]`).checked = false;
+        break;
+      case 'beds':
+        this.state.minBeds = 0;
+        document.getElementById('filter-beds').value = '0';
+        break;
+      case 'baths':
+        this.state.minBaths = 0;
+        document.getElementById('filter-baths').value = '0';
+        break;
+      case 'price':
+        this.state.priceMin = 0;
+        this.state.priceMax = Infinity;
+        document.getElementById('filter-price-min').value = '';
+        document.getElementById('filter-price-max').value = '';
+        break;
+      case 'sqft':
+        this.state.sqftMin = 0;
+        this.state.sqftMax = Infinity;
+        document.getElementById('filter-sqft-min').value = '';
+        document.getElementById('filter-sqft-max').value = '';
+        break;
+      case 'amenity':
+        this.state.amenities.delete(value);
+        this.container.querySelector(`[data-filter="amenity"][value="${value}"]`).checked = false;
+        break;
+    }
+    this._updateChips();
+    this._updateButtonStates();
     this._emitChange();
-    this._emitSearchChange();
   }
 
   _resetAll() {
@@ -461,7 +502,6 @@ export class FilterManager {
       amenities: new Set(),
     };
 
-    // Reset DOM
     document.getElementById('filter-search').value = '';
     document.getElementById('filter-beds').value = '0';
     document.getElementById('filter-baths').value = '0';
@@ -469,121 +509,105 @@ export class FilterManager {
     document.getElementById('filter-price-max').value = '';
     document.getElementById('filter-sqft-min').value = '';
     document.getElementById('filter-sqft-max').value = '';
-    this.container.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
-      cb.checked = false;
-    });
+    this.container.querySelectorAll('input[type="checkbox"]').forEach((cb) => { cb.checked = false; });
 
+    this._updateChips();
+    this._updateButtonStates();
+    this._emitChange();
+    this._emitSearchChange();
+  }
+
+  // ── Autocomplete dropdown ───────────────────────────
+
+  _showAutocomplete(query) {
+    const dropdown = document.getElementById('filter-dropdown');
+    const matches = this._matchSuggestions(query);
+    this._activeDropdownIndex = -1;
+
+    if (!matches.length) { this._hideAutocomplete(); return; }
+
+    dropdown.innerHTML = matches.map((s, i) => `
+      <div class="ftb__ac-item" data-index="${i}" data-value="${s.searchValue}">
+        <svg class="ftb__ac-icon" viewBox="0 0 24 24" width="16" height="16"><path d="${s.icon}" fill="currentColor"/></svg>
+        <div class="ftb__ac-text">
+          <span class="ftb__ac-name">${this._highlightMatch(s.text, query)}</span>
+          <span class="ftb__ac-type">${s.type}</span>
+        </div>
+      </div>`).join('');
+
+    dropdown.style.display = 'block';
+
+    dropdown.querySelectorAll('.ftb__ac-item').forEach((item) => {
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        this._selectSuggestion(item.dataset.value);
+      });
+    });
+  }
+
+  _hideAutocomplete() {
+    const dropdown = document.getElementById('filter-dropdown');
+    dropdown.style.display = 'none';
+    dropdown.innerHTML = '';
+    this._activeDropdownIndex = -1;
+  }
+
+  _highlightAcItem(items) {
+    items.forEach((el, i) => {
+      el.classList.toggle('ftb__ac-item--active', i === this._activeDropdownIndex);
+    });
+  }
+
+  _highlightMatch(text, query) {
+    if (!query) return text;
+    const idx = text.toLowerCase().indexOf(query.toLowerCase());
+    if (idx === -1) return text;
+    return `${text.slice(0, idx)}<strong>${text.slice(idx, idx + query.length)}</strong>${text.slice(idx + query.length)}`;
+  }
+
+  _selectSuggestion(value) {
+    const searchInput = document.getElementById('filter-search');
+    searchInput.value = value;
+    this.state.searchQuery = value.toLowerCase();
+    this._hideAutocomplete();
     this._emitChange();
     this._emitSearchChange();
   }
 
   // ── Filtering logic ─────────────────────────────────
 
-  /**
-   * Filter a set of listings through all active filters.
-   * @param {Array} listings – listings to filter (usually the map-visible ones)
-   * @returns {Array} – subset that passes all filters
-   */
   applyFilters(listings) {
     return listings.filter((listing) => {
-      // Search by city, zip, or address
       if (this.state.searchQuery) {
         const city = this._parseCity(listing.address).toLowerCase();
         const zip = this._parseZip(listing.address);
         const addr = listing.address.toLowerCase();
         const query = this.state.searchQuery;
-        if (!city.includes(query) && !zip.includes(query) && !addr.includes(query)) {
-          return false;
-        }
+        if (!city.includes(query) && !zip.includes(query) && !addr.includes(query)) return false;
       }
-
-      // Property type
-      if (this.state.types.size > 0 && !this.state.types.has(listing.type)) {
-        return false;
-      }
-
-      // Bedrooms (0 = studio counts as 0)
-      if (listing.bedrooms < this.state.minBeds) {
-        return false;
-      }
-
-      // Bathrooms
-      if (listing.bathrooms < this.state.minBaths) {
-        return false;
-      }
-
-      // Price range
-      if (listing.price < this.state.priceMin) {
-        return false;
-      }
-      if (listing.price > this.state.priceMax) {
-        return false;
-      }
-
-      // Sqft range
-      if (listing.sqft < this.state.sqftMin) {
-        return false;
-      }
-      if (listing.sqft > this.state.sqftMax) {
-        return false;
-      }
-
-      // Amenities – listing must have ALL selected amenities
+      if (this.state.types.size > 0 && !this.state.types.has(listing.type)) return false;
+      if (listing.bedrooms < this.state.minBeds) return false;
+      if (listing.bathrooms < this.state.minBaths) return false;
+      if (listing.price < this.state.priceMin) return false;
+      if (listing.price > this.state.priceMax) return false;
+      if (listing.sqft < this.state.sqftMin) return false;
+      if (listing.sqft > this.state.sqftMax) return false;
       if (this.state.amenities.size > 0) {
         for (const amenity of this.state.amenities) {
-          if (!listing.amenities.includes(amenity)) {
-            return false;
-          }
+          if (!listing.amenities.includes(amenity)) return false;
         }
       }
-
       return true;
     });
   }
 
-  /**
-   * Returns the set of listing IDs that pass all filters
-   * (tested against the FULL listings array, ignoring map bounds).
-   * Used to toggle marker visibility on the map.
-   */
   getPassingIds() {
     const passing = this.applyFilters(this.listings);
     return new Set(passing.map((l) => l.id));
   }
 
-  // ── Active filter count (for badge) ─────────────────
+  // ── Search helpers ──────────────────────────────────
 
-  _getActiveFilterCount() {
-    let count = 0;
-    if (this.state.searchQuery) count++;
-    if (this.state.types.size > 0) count++;
-    if (this.state.minBeds > 0) count++;
-    if (this.state.minBaths > 0) count++;
-    if (this.state.priceMin > 0) count++;
-    if (this.state.priceMax < Infinity) count++;
-    if (this.state.sqftMin > 0) count++;
-    if (this.state.sqftMax < Infinity) count++;
-    if (this.state.amenities.size > 0) count++;
-    return count;
-  }
-
-  _updateBadge() {
-    const badge = document.getElementById('filter-badge');
-    const count = this._getActiveFilterCount();
-    if (count > 0) {
-      badge.textContent = count;
-      badge.style.display = 'inline-flex';
-    } else {
-      badge.style.display = 'none';
-    }
-  }
-
-  // ── Search helpers ───────────────────────────────────
-
-  /**
-   * Return all listings whose city or zip matches the current search query.
-   * This ignores other filters – it's used to decide where the map should pan.
-   */
   getSearchMatches() {
     if (!this.state.searchQuery) return [];
     const query = this.state.searchQuery;
@@ -598,26 +622,16 @@ export class FilterManager {
   // ── Change notification ─────────────────────────────
 
   _emitChange() {
-    this._updateBadge();
     if (this._onChange) this._onChange();
   }
 
-  /** Debounced search-specific callback (400ms) so the map doesn't jump on every keystroke. */
   _emitSearchChange() {
     clearTimeout(this._searchDebounceTimer);
     this._searchDebounceTimer = setTimeout(() => {
-      if (this._onSearchChange) {
-        this._onSearchChange(this.getSearchMatches());
-      }
+      if (this._onSearchChange) this._onSearchChange(this.getSearchMatches());
     }, 400);
   }
 
-  onChange(cb) {
-    this._onChange = cb;
-  }
-
-  /** Register a callback for search-specific changes (debounced). */
-  onSearchChange(cb) {
-    this._onSearchChange = cb;
-  }
+  onChange(cb) { this._onChange = cb; }
+  onSearchChange(cb) { this._onSearchChange = cb; }
 }

@@ -1,36 +1,47 @@
 /**
  * filters.css
  * ---------------------------------------------------
- * Styles for the filter / search bar above the
- * listing cards in the sidebar panel.
+ * Horizontal filter toolbar above the map.
  *
- * BEM naming:
- *   .filter-bar              – wrapper
- *   .filter-bar__search      – search input row
- *   .filter-bar__toggle      – "Filters" expand button
- *   .filter-bar__panel       – collapsible filter area
- *   .filter-bar__section     – one filter group
- *   .filter-bar__check       – checkbox + label pair
+ * BEM-ish naming with "ftb" (filter toolbar) prefix:
+ *   .ftb                – wrapper
+ *   .ftb__search        – search input row
+ *   .ftb__buttons       – horizontal row of dropdown buttons
+ *   .ftb__btn           – one dropdown trigger button
+ *   .ftb__panel         – dropdown panel (absolutely positioned)
+ *   .ftb__chips         – row of active-filter chip tags
+ *   .ftb__chip          – one removable chip
+ *   .ftb__ac-*          – autocomplete suggestion items
  * ---------------------------------------------------
  */
 
-/* ── Filter bar wrapper ──────────────────────────────── */
-.filter-bar {
-  padding: 12px 16px;
+/* ── Toolbar wrapper ─────────────────────────────────── */
+.ftb {
+  position: relative;
+  padding: 10px 14px;
+  background: #ffffff;
   border-bottom: 1px solid #e0e0e0;
-  background: #fafbfc;
+  z-index: 10; /* above map tiles */
   flex-shrink: 0;
 }
 
-/* ── Search input ────────────────────────────────────── */
-.filter-bar__search {
-  position: relative;
+/* ── Rows ────────────────────────────────────────────── */
+.ftb__row {
   margin-bottom: 8px;
 }
 
-.filter-bar__input {
+.ftb__row:last-child {
+  margin-bottom: 0;
+}
+
+/* ── Search input ────────────────────────────────────── */
+.ftb__search {
+  position: relative;
+}
+
+.ftb__search-input {
   width: 100%;
-  padding: 9px 12px 9px 34px;
+  padding: 8px 12px 8px 34px;
   border: 1px solid #d0d5dd;
   border-radius: 6px;
   font-size: 13px;
@@ -41,16 +52,16 @@
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.filter-bar__input:focus {
+.ftb__search-input:focus {
   border-color: #006aff;
-  box-shadow: 0 0 0 3px rgba(0, 106, 255, 0.12);
+  box-shadow: 0 0 0 3px rgba(0, 106, 255, 0.10);
 }
 
-.filter-bar__input::placeholder {
+.ftb__search-input::placeholder {
   color: #999999;
 }
 
-.filter-bar__search-icon {
+.ftb__search-icon {
   position: absolute;
   left: 10px;
   top: 50%;
@@ -60,7 +71,7 @@
 }
 
 /* ── Autocomplete dropdown ───────────────────────────── */
-.filter-bar__dropdown {
+.ftb__autocomplete {
   display: none;
   position: absolute;
   top: 100%;
@@ -71,11 +82,11 @@
   border: 1px solid #d0d5dd;
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-  z-index: 100;
+  z-index: 200;
   overflow: hidden;
 }
 
-.filter-bar__dropdown-item {
+.ftb__ac-item {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -84,24 +95,28 @@
   transition: background 0.1s;
 }
 
-.filter-bar__dropdown-item:hover,
-.filter-bar__dropdown-item--active {
+.ftb__ac-item:hover,
+.ftb__ac-item--active {
   background: #f0f4ff;
 }
 
-.filter-bar__dropdown-icon {
+.ftb__ac-item + .ftb__ac-item {
+  border-top: 1px solid #f0f0f0;
+}
+
+.ftb__ac-icon {
   flex-shrink: 0;
   color: #006aff;
   opacity: 0.7;
 }
 
-.filter-bar__dropdown-text {
+.ftb__ac-text {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
 
-.filter-bar__dropdown-name {
+.ftb__ac-name {
   font-size: 13px;
   color: #2a2a2a;
   white-space: nowrap;
@@ -109,135 +124,117 @@
   text-overflow: ellipsis;
 }
 
-.filter-bar__dropdown-name strong {
+.ftb__ac-name strong {
   color: #006aff;
   font-weight: 700;
 }
 
-.filter-bar__dropdown-type {
+.ftb__ac-type {
   font-size: 11px;
   color: #888888;
   margin-top: 1px;
 }
 
-/* Divider between items */
-.filter-bar__dropdown-item + .filter-bar__dropdown-item {
-  border-top: 1px solid #f0f0f0;
-}
-
-/* ── Toggle button ───────────────────────────────────── */
-.filter-bar__toggle {
+/* ── Filter dropdown buttons row ─────────────────────── */
+.ftb__buttons {
   display: flex;
-  align-items: center;
   gap: 6px;
-  width: 100%;
-  padding: 7px 10px;
-  border: 1px solid #d0d5dd;
-  border-radius: 6px;
-  background: #ffffff;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  font-family: inherit;
-  color: #333333;
-  transition: background 0.15s, border-color 0.15s;
-}
-
-.filter-bar__toggle:hover {
-  background: #f0f4ff;
-  border-color: #006aff;
-}
-
-.filter-bar__toggle--active {
-  border-color: #006aff;
-  background: #f0f4ff;
-}
-
-.filter-bar__toggle-text {
-  flex: 1;
-  text-align: left;
-}
-
-.filter-bar__badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  background: #006aff;
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.filter-bar__chevron {
-  color: #666666;
-  transition: transform 0.2s;
-  flex-shrink: 0;
-}
-
-/* ── Collapsible panel ───────────────────────────────── */
-.filter-bar__panel {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid #e8eaed;
-  max-height: 380px;
-  overflow-y: auto;
-}
-
-/* Scrollbar inside filter panel */
-.filter-bar__panel::-webkit-scrollbar {
-  width: 4px;
-}
-.filter-bar__panel::-webkit-scrollbar-thumb {
-  background: #cccccc;
-  border-radius: 2px;
-}
-
-/* ── Section (one filter group) ──────────────────────── */
-.filter-bar__section {
-  margin-bottom: 14px;
-}
-
-.filter-bar__label {
-  font-size: 11px;
-  font-weight: 700;
-  color: #555555;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 6px;
-}
-
-/* ── Checkbox group ──────────────────────────────────── */
-.filter-bar__checks {
-  display: flex;
   flex-wrap: wrap;
-  gap: 4px 6px;
+  margin-bottom: 0 !important;
 }
 
-.filter-bar__check {
+.ftb__btn-wrap {
+  position: relative;
+}
+
+.ftb__btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  color: #444444;
-  padding: 3px 8px;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
+  padding: 5px 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
   background: #ffffff;
-  transition: background 0.15s, border-color 0.15s;
-  user-select: none;
+  color: #333333;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 
-.filter-bar__check:hover {
+.ftb__btn:hover {
   border-color: #006aff;
   background: #f0f4ff;
 }
 
-.filter-bar__check input[type="checkbox"] {
+/* Currently open dropdown */
+.ftb__btn--active {
+  border-color: #006aff;
+  background: #f0f4ff;
+  color: #006aff;
+}
+
+/* Has an active filter value */
+.ftb__btn--has-value {
+  border-color: #006aff;
+  color: #006aff;
+  background: #eef3ff;
+}
+
+.ftb__chevron {
+  color: inherit;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+/* ── Dropdown panels ─────────────────────────────────── */
+.ftb__panel {
+  display: none;
+  position: absolute;
+  z-index: 150;
+  background: #ffffff;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  padding: 10px;
+  min-width: 160px;
+}
+
+.ftb__panel--open {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.ftb__panel--wide {
+  min-width: 280px;
+  max-width: 360px;
+}
+
+/* ── Checkbox labels inside panels ───────────────────── */
+.ftb__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border: 1px solid #e8e8e8;
+  border-radius: 5px;
+  background: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+  color: #444444;
+  user-select: none;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.ftb__check:hover {
+  border-color: #006aff;
+  background: #f0f4ff;
+}
+
+.ftb__check input[type="checkbox"] {
   width: 13px;
   height: 13px;
   accent-color: #006aff;
@@ -245,89 +242,133 @@
   cursor: pointer;
 }
 
-.filter-bar__check input[type="checkbox"]:checked + span {
+.ftb__check input[type="checkbox"]:checked + span {
   color: #006aff;
   font-weight: 600;
 }
 
-/* ── Range row (price, sqft) ─────────────────────────── */
-.filter-bar__range-row {
+/* ── Select inside panels ────────────────────────────── */
+.ftb__select {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 5px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #2a2a2a;
+  background: #ffffff;
+  cursor: pointer;
+  outline: none;
+}
+
+.ftb__select:focus {
+  border-color: #006aff;
+}
+
+/* ── Number range inside panels ──────────────────────── */
+.ftb__range {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.filter-bar__range-sep {
+.ftb__range-sep {
   color: #999999;
   font-size: 14px;
 }
 
-.filter-bar__number {
+.ftb__num {
   flex: 1;
-  padding: 6px 8px;
+  padding: 7px 10px;
   border: 1px solid #d0d5dd;
   border-radius: 5px;
   font-size: 12px;
   font-family: inherit;
   color: #2a2a2a;
   outline: none;
-  max-width: 120px;
-  transition: border-color 0.15s;
+  max-width: 110px;
 }
 
-.filter-bar__number:focus {
+.ftb__num:focus {
   border-color: #006aff;
 }
 
-.filter-bar__number::placeholder {
+.ftb__num::placeholder {
   color: #aaaaaa;
 }
 
-/* Hide number input spinners for cleaner look */
-.filter-bar__number::-webkit-outer-spin-button,
-.filter-bar__number::-webkit-inner-spin-button {
+/* Hide spinners */
+.ftb__num::-webkit-outer-spin-button,
+.ftb__num::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
-.filter-bar__number {
+.ftb__num {
   -moz-appearance: textfield;
 }
 
-/* ── Select (beds, baths) ────────────────────────────── */
-.filter-bar__select {
-  padding: 6px 8px;
-  border: 1px solid #d0d5dd;
-  border-radius: 5px;
-  font-size: 12px;
-  font-family: inherit;
-  color: #2a2a2a;
-  background: #ffffff;
-  cursor: pointer;
-  outline: none;
-  min-width: 80px;
-  transition: border-color 0.15s;
+/* ── Active filter chips ─────────────────────────────── */
+.ftb__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding-top: 8px;
 }
 
-.filter-bar__select:focus {
-  border-color: #006aff;
+/* Hide the row when empty */
+.ftb__chips:empty {
+  display: none;
 }
 
-/* ── Reset button ────────────────────────────────────── */
-.filter-bar__reset {
-  width: 100%;
-  padding: 8px;
-  border: 1px solid #d0d5dd;
-  border-radius: 6px;
-  background: #ffffff;
-  color: #666666;
-  font-size: 12px;
+.ftb__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: #eef3ff;
+  color: #006aff;
+  font-size: 11px;
   font-weight: 600;
   font-family: inherit;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  border: 1px solid #c8d8ff;
+  white-space: nowrap;
 }
 
-.filter-bar__reset:hover {
+.ftb__chip-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: #006aff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 0;
+  line-height: 1;
+  transition: background 0.12s, color 0.12s;
+}
+
+.ftb__chip-x:hover {
+  background: #006aff;
+  color: #ffffff;
+}
+
+/* "Clear all" chip */
+.ftb__chip--reset {
+  background: transparent;
+  border-color: #d0d5dd;
+  color: #888888;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.ftb__chip--reset:hover {
   background: #fff0f0;
   color: #d32f2f;
   border-color: #d32f2f;
