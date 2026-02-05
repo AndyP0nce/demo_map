@@ -66,10 +66,10 @@ def internal_error(error):
 
 if __name__ == '__main__':
     # Run the Flask development server
-    print("🏠 Starting Campus Apartments API...")
-    print("📍 Frontend: http://localhost:5000")
-    print("🔌 API: http://localhost:5000/api")
-    print("💚 Health Check: http://localhost:5000/api/health")
+    print(" Starting Campus Apartments API...")
+    print(" Frontend: http://localhost:5000")
+    print(" API: http://localhost:5000/api")
+    print(" Health Check: http://localhost:5000/api/health")
     
     app.run(
         debug=True,
