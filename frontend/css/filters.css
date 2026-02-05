@@ -59,6 +59,72 @@
   pointer-events: none;
 }
 
+/* ── Autocomplete dropdown ───────────────────────────── */
+.filter-bar__dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: #ffffff;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.filter-bar__dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.filter-bar__dropdown-item:hover,
+.filter-bar__dropdown-item--active {
+  background: #f0f4ff;
+}
+
+.filter-bar__dropdown-icon {
+  flex-shrink: 0;
+  color: #006aff;
+  opacity: 0.7;
+}
+
+.filter-bar__dropdown-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.filter-bar__dropdown-name {
+  font-size: 13px;
+  color: #2a2a2a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.filter-bar__dropdown-name strong {
+  color: #006aff;
+  font-weight: 700;
+}
+
+.filter-bar__dropdown-type {
+  font-size: 11px;
+  color: #888888;
+  margin-top: 1px;
+}
+
+/* Divider between items */
+.filter-bar__dropdown-item + .filter-bar__dropdown-item {
+  border-top: 1px solid #f0f0f0;
+}
+
 /* ── Toggle button ───────────────────────────────────── */
 .filter-bar__toggle {
   display: flex;

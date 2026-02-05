@@ -35,6 +35,9 @@ export class FilterManager {
     this.allCities = [...new Set(listings.map((l) => this._parseCity(l.address)))].sort();
     this.allZips = [...new Set(listings.map((l) => this._parseZip(l.address)))].sort();
 
+    // Build autocomplete suggestion catalog
+    this._suggestions = this._buildSuggestions();
+
     // Current filter state
     this.state = {
       searchQuery: '',
@@ -66,6 +69,70 @@ export class FilterManager {
     return match ? match[0] : '';
   }
 
+  // ── Autocomplete catalog ─────────────────────────────
+
+  /**
+   * Build a flat array of suggestion objects from listings data.
+   * Each has { text, type, icon, searchValue }.
+   */
+  _buildSuggestions() {
+    const suggestions = [];
+
+    // Campus
+    suggestions.push({
+      text: 'CSUN - California State University, Northridge',
+      type: 'Campus',
+      icon: 'M12 3L1 9l4 2.18v6L12 21l7-3.82v-6L23 9l-11-6z', // graduation cap simplified
+      searchValue: 'northridge',
+    });
+
+    // Cities – with listing count
+    this.allCities.forEach((city) => {
+      const count = this.listings.filter((l) => this._parseCity(l.address) === city).length;
+      suggestions.push({
+        text: city,
+        type: `City · ${count} listing${count !== 1 ? 's' : ''}`,
+        icon: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z', // pin
+        searchValue: city.toLowerCase(),
+      });
+    });
+
+    // Zip codes – with city name
+    this.allZips.forEach((zip) => {
+      const sample = this.listings.find((l) => this._parseZip(l.address) === zip);
+      const city = sample ? this._parseCity(sample.address) : '';
+      suggestions.push({
+        text: zip,
+        type: `Zip Code · ${city}`,
+        icon: 'M20 6H10v2h10V6zm0 4H10v2h10v-2zm0 4H10v2h10v-2zM4 6h4v12H4z', // list
+        searchValue: zip,
+      });
+    });
+
+    // Addresses (street + city) – one per listing
+    this.listings.forEach((l) => {
+      suggestions.push({
+        text: l.address,
+        type: 'Address',
+        icon: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z', // house
+        searchValue: l.address.toLowerCase(),
+      });
+    });
+
+    return suggestions;
+  }
+
+  /**
+   * Return up to `limit` suggestions matching the query string.
+   */
+  _matchSuggestions(query, limit = 6) {
+    if (!query) return [];
+    const q = query.toLowerCase();
+    return this._suggestions
+      .filter((s) => s.text.toLowerCase().includes(q) || s.searchValue.includes(q))
+      .slice(0, limit);
+  }
+
   // ── Render ──────────────────────────────────────────
 
   _render() {
@@ -84,6 +151,7 @@ export class FilterManager {
             <circle cx="11" cy="11" r="8"/>
             <line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
+          <div class="filter-bar__dropdown" id="filter-dropdown"></div>
         </div>
 
         <!-- Toggle button for advanced filters -->
@@ -185,12 +253,51 @@ export class FilterManager {
   // ── Events ──────────────────────────────────────────
 
   _bindEvents() {
-    // Search input
+    // Search input + autocomplete
     const searchInput = document.getElementById('filter-search');
+    const dropdown = document.getElementById('filter-dropdown');
+    this._activeDropdownIndex = -1;
+
     searchInput.addEventListener('input', () => {
       this.state.searchQuery = searchInput.value.trim().toLowerCase();
+      this._showDropdown(searchInput.value.trim());
       this._emitChange();
       this._emitSearchChange();
+    });
+
+    searchInput.addEventListener('focus', () => {
+      if (searchInput.value.trim()) {
+        this._showDropdown(searchInput.value.trim());
+      }
+    });
+
+    // Keyboard navigation inside dropdown
+    searchInput.addEventListener('keydown', (e) => {
+      const items = dropdown.querySelectorAll('.filter-bar__dropdown-item');
+      if (!items.length) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        this._activeDropdownIndex = Math.min(this._activeDropdownIndex + 1, items.length - 1);
+        this._highlightDropdownItem(items);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        this._activeDropdownIndex = Math.max(this._activeDropdownIndex - 1, 0);
+        this._highlightDropdownItem(items);
+      } else if (e.key === 'Enter' && this._activeDropdownIndex >= 0) {
+        e.preventDefault();
+        items[this._activeDropdownIndex].click();
+      } else if (e.key === 'Escape') {
+        this._hideDropdown();
+        searchInput.blur();
+      }
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!this.container.querySelector('.filter-bar__search').contains(e.target)) {
+        this._hideDropdown();
+      }
     });
 
     // Filter toggle
@@ -268,6 +375,77 @@ export class FilterManager {
     document.getElementById('filter-reset').addEventListener('click', () => {
       this._resetAll();
     });
+  }
+
+  // ── Autocomplete dropdown ────────────────────────────
+
+  _showDropdown(query) {
+    const dropdown = document.getElementById('filter-dropdown');
+    const matches = this._matchSuggestions(query);
+    this._activeDropdownIndex = -1;
+
+    if (!matches.length) {
+      this._hideDropdown();
+      return;
+    }
+
+    dropdown.innerHTML = matches
+      .map(
+        (s, i) => `
+        <div class="filter-bar__dropdown-item" data-index="${i}" data-value="${s.searchValue}">
+          <svg class="filter-bar__dropdown-icon" viewBox="0 0 24 24" width="16" height="16">
+            <path d="${s.icon}" fill="currentColor"/>
+          </svg>
+          <div class="filter-bar__dropdown-text">
+            <span class="filter-bar__dropdown-name">${this._highlightMatch(s.text, query)}</span>
+            <span class="filter-bar__dropdown-type">${s.type}</span>
+          </div>
+        </div>`,
+      )
+      .join('');
+
+    dropdown.style.display = 'block';
+
+    // Bind click on each suggestion
+    dropdown.querySelectorAll('.filter-bar__dropdown-item').forEach((item) => {
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault(); // keep focus on input
+        this._selectSuggestion(item.dataset.value);
+      });
+    });
+  }
+
+  _hideDropdown() {
+    const dropdown = document.getElementById('filter-dropdown');
+    dropdown.style.display = 'none';
+    dropdown.innerHTML = '';
+    this._activeDropdownIndex = -1;
+  }
+
+  _highlightDropdownItem(items) {
+    items.forEach((el, i) => {
+      el.classList.toggle('filter-bar__dropdown-item--active', i === this._activeDropdownIndex);
+    });
+  }
+
+  /** Bold the portion of `text` that matches `query`. */
+  _highlightMatch(text, query) {
+    if (!query) return text;
+    const idx = text.toLowerCase().indexOf(query.toLowerCase());
+    if (idx === -1) return text;
+    const before = text.slice(0, idx);
+    const match = text.slice(idx, idx + query.length);
+    const after = text.slice(idx + query.length);
+    return `${before}<strong>${match}</strong>${after}`;
+  }
+
+  _selectSuggestion(value) {
+    const searchInput = document.getElementById('filter-search');
+    searchInput.value = value;
+    this.state.searchQuery = value.toLowerCase();
+    this._hideDropdown();
+    this._emitChange();
+    this._emitSearchChange();
   }
 
   _resetAll() {
