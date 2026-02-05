@@ -19,7 +19,7 @@
  * ---------------------------------------------------
  */
 
-import { LISTINGS, CSUN } from './data/listings.js';
+import { LISTINGS, CSUN, UNIVERSITIES } from './data/listings.js';
 import { MapManager } from './modules/map.js';
 import { CardRenderer } from './modules/cards.js';
 import { FilterManager } from './modules/filters.js';
@@ -39,8 +39,8 @@ function init() {
   // 1. Create the map
   mapManager.init('map-container', MAP_CENTER, MAP_ZOOM);
 
-  // 2. Add a special marker for CSUN
-  mapManager.addUniversityMarker(CSUN);
+  // 2. Add pill markers for all California universities
+  UNIVERSITIES.forEach((uni) => mapManager.addUniversityMarker(uni));
 
   // 3. Add price-tag markers for every listing
   mapManager.addListingMarkers(LISTINGS);

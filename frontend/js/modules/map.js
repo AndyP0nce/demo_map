@@ -159,7 +159,7 @@ export class MapManager {
     this.activeMarkerId = null;
     this._searchHighlight = null; // google.maps.Rectangle for search area
     this._searchPin = null;       // google.maps.Marker for address search
-    this._csunInfoWindow = null;  // keep reference so we can close it
+    this._uniMarkers = [];        // { overlay, infoWindow, isOpen, position }
 
     // Callbacks set by app.js
     this._onBoundsChange = null;
@@ -201,15 +201,16 @@ export class MapManager {
   // ── University marker ──────────────────────────────
 
   /**
-   * Drop a distinctive marker for the university itself.
+   * Drop a distinctive marker for a university.
+   * Supports multiple universities – each gets its own pill marker
+   * with hover preview and click-to-pin behavior.
    * @param {object} university – { name, fullName, lat, lng }
    */
   addUniversityMarker(university) {
     const pos = new google.maps.LatLng(university.lat, university.lng);
     const overlay = new UniversityMarkerOverlay(pos, university.name, university.fullName, this.map);
 
-    this._csunOverlay = overlay;
-    this._csunInfoWindow = new google.maps.InfoWindow({
+    const infoWindow = new google.maps.InfoWindow({
       content: `
         <div style="padding:10px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
           <strong style="font-size:14px;color:#2a2a2a;">${university.fullName}</strong><br>
@@ -218,20 +219,22 @@ export class MapManager {
       pixelOffset: new google.maps.Size(0, -44),
       disableAutoPan: true,
     });
-    this._csunInfoOpen = false;
+
+    const entry = { overlay, infoWindow, isOpen: false, position: pos };
+    this._uniMarkers.push(entry);
 
     // Hover → show info preview
     overlay.onMouseOver = () => {
-      if (!this._csunInfoOpen) {
+      if (!entry.isOpen) {
         overlay.setActive(true);
-        this._csunInfoWindow.setPosition(pos);
-        this._csunInfoWindow.open(this.map);
+        infoWindow.setPosition(pos);
+        infoWindow.open(this.map);
       }
     };
     overlay.onMouseOut = () => {
-      if (!this._csunInfoOpen) {
+      if (!entry.isOpen) {
         overlay.setActive(false);
-        this._csunInfoWindow.close();
+        infoWindow.close();
       }
     };
 
@@ -239,19 +242,32 @@ export class MapManager {
     overlay.onClick = () => {
       this.hideInfoWindow(); // close any listing popup
 
-      if (this._csunInfoOpen) {
+      if (entry.isOpen) {
         // Close it
-        this._csunInfoWindow.close();
+        infoWindow.close();
         overlay.setActive(false);
-        this._csunInfoOpen = false;
+        entry.isOpen = false;
       } else {
-        // Pin it open
-        this._csunInfoWindow.setPosition(pos);
-        this._csunInfoWindow.open(this.map);
+        // Close any other open university popup first
+        this._closeAllUniPopups();
+        // Pin this one open
+        infoWindow.setPosition(pos);
+        infoWindow.open(this.map);
         overlay.setActive(true);
-        this._csunInfoOpen = true;
+        entry.isOpen = true;
       }
     };
+  }
+
+  /** Close all pinned-open university popups. */
+  _closeAllUniPopups() {
+    this._uniMarkers.forEach((entry) => {
+      if (entry.isOpen) {
+        entry.infoWindow.close();
+        entry.overlay.setActive(false);
+        entry.isOpen = false;
+      }
+    });
   }
 
   // ── Listing markers ────────────────────────────────
@@ -322,12 +338,8 @@ export class MapManager {
   showInfoWindow(listingId) {
     this.hideInfoWindow(); // close any existing one first
 
-    // Also close CSUN popup if open
-    if (this._csunInfoOpen) {
-      this._csunInfoWindow.close();
-      this._csunOverlay.setActive(false);
-      this._csunInfoOpen = false;
-    }
+    // Also close any open university popup
+    this._closeAllUniPopups();
 
     const entry = this.priceMarkers.find((m) => m.listing.id === listingId);
     if (!entry) return;

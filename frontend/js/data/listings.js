@@ -19,6 +19,58 @@ export const CSUN = {
   lng: -118.5285,
 };
 
+// All major California universities (UC, CSU, and notable private)
+export const UNIVERSITIES = [
+  // ── UC System ───────────────────────────────────────
+  { name: 'UC Berkeley', fullName: 'University of California, Berkeley', lat: 37.8719, lng: -122.2585 },
+  { name: 'UC Davis', fullName: 'University of California, Davis', lat: 38.5382, lng: -121.7617 },
+  { name: 'UC Irvine', fullName: 'University of California, Irvine', lat: 33.6405, lng: -117.8443 },
+  { name: 'UCLA', fullName: 'University of California, Los Angeles', lat: 34.0689, lng: -118.4452 },
+  { name: 'UC Merced', fullName: 'University of California, Merced', lat: 37.3661, lng: -120.4242 },
+  { name: 'UC Riverside', fullName: 'University of California, Riverside', lat: 33.9737, lng: -117.3281 },
+  { name: 'UC San Diego', fullName: 'University of California, San Diego', lat: 32.8801, lng: -117.2340 },
+  { name: 'UCSF', fullName: 'University of California, San Francisco', lat: 37.7631, lng: -122.4586 },
+  { name: 'UC Santa Barbara', fullName: 'University of California, Santa Barbara', lat: 34.4140, lng: -119.8489 },
+  { name: 'UC Santa Cruz', fullName: 'University of California, Santa Cruz', lat: 36.9914, lng: -122.0609 },
+
+  // ── CSU System ──────────────────────────────────────
+  { name: 'CSUN', fullName: 'California State University, Northridge', lat: 34.2381, lng: -118.5285 },
+  { name: 'CSU Bakersfield', fullName: 'California State University, Bakersfield', lat: 35.3508, lng: -119.1026 },
+  { name: 'CSU Channel Islands', fullName: 'California State University, Channel Islands', lat: 34.1622, lng: -119.0442 },
+  { name: 'Chico State', fullName: 'California State University, Chico', lat: 39.7285, lng: -121.8463 },
+  { name: 'CSU Dominguez Hills', fullName: 'California State University, Dominguez Hills', lat: 33.8634, lng: -118.2560 },
+  { name: 'CSU East Bay', fullName: 'California State University, East Bay', lat: 37.6557, lng: -122.0566 },
+  { name: 'Fresno State', fullName: 'California State University, Fresno', lat: 36.8134, lng: -119.7483 },
+  { name: 'CSU Fullerton', fullName: 'California State University, Fullerton', lat: 33.8829, lng: -117.8854 },
+  { name: 'Cal Poly Humboldt', fullName: 'California State Polytechnic University, Humboldt', lat: 40.8757, lng: -124.0786 },
+  { name: 'CSU Long Beach', fullName: 'California State University, Long Beach', lat: 33.7838, lng: -118.1141 },
+  { name: 'CSU Los Angeles', fullName: 'California State University, Los Angeles', lat: 34.0662, lng: -118.1685 },
+  { name: 'CSU Maritime', fullName: 'California State University Maritime Academy', lat: 38.0690, lng: -122.2312 },
+  { name: 'CSU Monterey Bay', fullName: 'California State University, Monterey Bay', lat: 36.6536, lng: -121.7985 },
+  { name: 'Cal Poly Pomona', fullName: 'California State Polytechnic University, Pomona', lat: 34.0565, lng: -117.8216 },
+  { name: 'Sacramento State', fullName: 'California State University, Sacramento', lat: 38.5616, lng: -121.4239 },
+  { name: 'Cal Poly SLO', fullName: 'California Polytechnic State University, San Luis Obispo', lat: 35.3050, lng: -120.6625 },
+  { name: 'CSU San Bernardino', fullName: 'California State University, San Bernardino', lat: 34.1816, lng: -117.3233 },
+  { name: 'SDSU', fullName: 'San Diego State University', lat: 32.7748, lng: -117.0722 },
+  { name: 'SFSU', fullName: 'San Francisco State University', lat: 37.7219, lng: -122.4782 },
+  { name: 'SJSU', fullName: 'San Jose State University', lat: 37.3352, lng: -121.8811 },
+  { name: 'CSU San Marcos', fullName: 'California State University, San Marcos', lat: 33.1284, lng: -117.1597 },
+  { name: 'Sonoma State', fullName: 'Sonoma State University', lat: 38.3394, lng: -122.6741 },
+  { name: 'CSU Stanislaus', fullName: 'California State University, Stanislaus', lat: 37.5247, lng: -120.8558 },
+
+  // ── Notable Private Universities ────────────────────
+  { name: 'Stanford', fullName: 'Stanford University', lat: 37.4275, lng: -122.1697 },
+  { name: 'USC', fullName: 'University of Southern California', lat: 34.0224, lng: -118.2851 },
+  { name: 'Caltech', fullName: 'California Institute of Technology', lat: 34.1377, lng: -118.1253 },
+  { name: 'Pepperdine', fullName: 'Pepperdine University', lat: 34.0367, lng: -118.7120 },
+  { name: 'USD', fullName: 'University of San Diego', lat: 32.7716, lng: -117.1881 },
+  { name: 'USF', fullName: 'University of San Francisco', lat: 37.7767, lng: -122.4520 },
+  { name: 'LMU', fullName: 'Loyola Marymount University', lat: 33.9692, lng: -118.4184 },
+  { name: 'Santa Clara', fullName: 'Santa Clara University', lat: 37.3496, lng: -121.9381 },
+  { name: 'Chapman', fullName: 'Chapman University', lat: 33.7929, lng: -117.8520 },
+  { name: 'Claremont Colleges', fullName: 'The Claremont Colleges', lat: 34.0966, lng: -117.7087 },
+];
+
 export const LISTINGS = [
   // ── Northridge (near CSUN) ────────────────────────
   {
