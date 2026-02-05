@@ -70,6 +70,62 @@
   pointer-events: none;
 }
 
+/* ── University marker (CSUN pill) ───────────────── */
+.uni-marker {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #006aff;
+  color: #ffffff;
+  border: 2px solid #ffffff;
+  border-radius: 10px;
+  padding: 5px 12px 5px 9px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  transform: translate(-50%, -100%);
+  transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+  z-index: 5;
+}
+
+/* Pin triangle pointing down */
+.uni-marker::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid #006aff;
+}
+
+.uni-marker__icon {
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.uni-marker__name {
+  letter-spacing: 0.5px;
+}
+
+/* Hover / active – darker + lift */
+.uni-marker:hover,
+.uni-marker--active {
+  background: #0050cc;
+  transform: translate(-50%, -100%) scale(1.06);
+  box-shadow: 0 4px 14px rgba(0, 106, 255, 0.35);
+  z-index: 6;
+}
+
+.uni-marker:hover::after,
+.uni-marker--active::after {
+  border-top-color: #0050cc;
+}
+
 /* ── Google Maps InfoWindow overrides ─────────────── */
 /* Remove default padding Google adds */
 .gm-style-iw-c {

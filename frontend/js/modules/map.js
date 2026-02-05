@@ -91,6 +91,64 @@ class PriceMarkerOverlay extends google.maps.OverlayView {
   }
 }
 
+// ─── UniversityMarkerOverlay ─────────────────────────
+// Renders a named pill on the map for the university.
+// Same OverlayView approach as PriceMarkerOverlay but
+// with distinct styling and a graduation-cap icon.
+
+class UniversityMarkerOverlay extends google.maps.OverlayView {
+  constructor(position, name, fullName, map) {
+    super();
+    this.position = position;
+    this.name = name;
+    this.fullName = fullName;
+    this.div = null;
+    this.onMouseOver = null;
+    this.onMouseOut = null;
+    this.onClick = null;
+    this.setMap(map);
+  }
+
+  onAdd() {
+    this.div = document.createElement('div');
+    this.div.className = 'uni-marker';
+    this.div.innerHTML = `
+      <svg class="uni-marker__icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+        <path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6L23 9l-11-6z"/>
+      </svg>
+      <span class="uni-marker__name">${this.name}</span>`;
+
+    this.div.addEventListener('mouseover', () => { if (this.onMouseOver) this.onMouseOver(); });
+    this.div.addEventListener('mouseout', () => { if (this.onMouseOut) this.onMouseOut(); });
+    this.div.addEventListener('click', () => { if (this.onClick) this.onClick(); });
+
+    const panes = this.getPanes();
+    panes.overlayMouseTarget.appendChild(this.div);
+  }
+
+  draw() {
+    const projection = this.getProjection();
+    const pos = projection.fromLatLngToDivPixel(this.position);
+    if (this.div) {
+      this.div.style.left = pos.x + 'px';
+      this.div.style.top = pos.y + 'px';
+    }
+  }
+
+  onRemove() {
+    if (this.div && this.div.parentNode) {
+      this.div.parentNode.removeChild(this.div);
+      this.div = null;
+    }
+  }
+
+  setActive(active) {
+    if (this.div) {
+      this.div.classList.toggle('uni-marker--active', active);
+    }
+  }
+}
+
 // ─── MapManager (public API) ─────────────────────────
 
 export class MapManager {
@@ -147,46 +205,53 @@ export class MapManager {
    * @param {object} university – { name, fullName, lat, lng }
    */
   addUniversityMarker(university) {
-    const marker = new google.maps.Marker({
-      position: { lat: university.lat, lng: university.lng },
-      map: this.map,
-      title: university.fullName,
-      icon: {
-        path: google.maps.SymbolPath.CIRCLE,
-        scale: 10,
-        fillColor: '#006aff',
-        fillOpacity: 1,
-        strokeColor: '#ffffff',
-        strokeWeight: 3,
-      },
-      zIndex: 1000, // always on top of price markers
-    });
+    const pos = new google.maps.LatLng(university.lat, university.lng);
+    const overlay = new UniversityMarkerOverlay(pos, university.name, university.fullName, this.map);
 
+    this._csunOverlay = overlay;
     this._csunInfoWindow = new google.maps.InfoWindow({
       content: `
-        <div style="padding:8px;font-family:sans-serif;">
-          <strong style="font-size:14px;">${university.fullName}</strong><br>
-          <span style="color:#666;font-size:12px;">${university.name}</span>
+        <div style="padding:10px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+          <strong style="font-size:14px;color:#2a2a2a;">${university.fullName}</strong><br>
+          <span style="color:#666;font-size:12px;">${university.name} — Main Campus</span>
         </div>`,
+      pixelOffset: new google.maps.Size(0, -44),
+      disableAutoPan: true,
     });
+    this._csunInfoOpen = false;
 
-    this._csunMarker = marker;
+    // Hover → show info preview
+    overlay.onMouseOver = () => {
+      if (!this._csunInfoOpen) {
+        overlay.setActive(true);
+        this._csunInfoWindow.setPosition(pos);
+        this._csunInfoWindow.open(this.map);
+      }
+    };
+    overlay.onMouseOut = () => {
+      if (!this._csunInfoOpen) {
+        overlay.setActive(false);
+        this._csunInfoWindow.close();
+      }
+    };
 
-    // Click toggles the CSUN info window open/closed
-    marker.addListener('click', () => {
-      // Close any listing info window first
-      this.hideInfoWindow();
+    // Click → toggle pinned open / closed
+    overlay.onClick = () => {
+      this.hideInfoWindow(); // close any listing popup
 
       if (this._csunInfoOpen) {
+        // Close it
         this._csunInfoWindow.close();
+        overlay.setActive(false);
         this._csunInfoOpen = false;
       } else {
-        this._csunInfoWindow.open(this.map, marker);
+        // Pin it open
+        this._csunInfoWindow.setPosition(pos);
+        this._csunInfoWindow.open(this.map);
+        overlay.setActive(true);
         this._csunInfoOpen = true;
       }
-    });
-
-    this._csunInfoOpen = false;
+    };
   }
 
   // ── Listing markers ────────────────────────────────
@@ -260,6 +325,7 @@ export class MapManager {
     // Also close CSUN popup if open
     if (this._csunInfoOpen) {
       this._csunInfoWindow.close();
+      this._csunOverlay.setActive(false);
       this._csunInfoOpen = false;
     }
 
