@@ -3,3 +3,4 @@ djangorestframework>=3.14
 mysqlclient>=2.2
 python-dotenv>=1.0
 django-cors-headers>=4.3
+boto3>=1.34
