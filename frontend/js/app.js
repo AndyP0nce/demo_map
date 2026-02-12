@@ -4,30 +4,37 @@
  * Entry point – ties the map, card, filter, and modal modules together.
  *
  * Data flow:
- *   1. Map initializes centered on target university (default CSUN)
- *   2. Price markers are placed for every listing
- *   3. Filters render above the card list
- *   4. On map idle (pan / zoom stops) → visible + filtered listings → sidebar cards
- *   5. On filter change → visible + filtered listings → sidebar cards + marker visibility
- *   6. Hover card  → highlight marker + open info window
- *   7. Hover marker → highlight card + scroll into view
- *   8. Click marker or card → open full-detail modal
- *   9. Search address → drop temp pin on map
- *  10. Target university change → recalculate distances, pan map
+ *   1. Fetch listings and universities from the API
+ *   2. Map initializes centered on target university (default CSUN)
+ *   3. Price markers are placed for every listing
+ *   4. Filters render above the card list
+ *   5. On map idle (pan / zoom stops) → visible + filtered listings → sidebar cards
+ *   6. On filter change → visible + filtered listings → sidebar cards + marker visibility
+ *   7. Hover card  → highlight marker + open info window
+ *   8. Hover marker → highlight card + scroll into view
+ *   9. Click marker or card → open full-detail modal
+ *  10. Search address → drop temp pin on map
+ *  11. Target university change → recalculate distances, pan map
  *
  * This file does NOT contain rendering logic – that lives in
  * map.js, cards.js, filters.js, and modal.js.
  * ---------------------------------------------------
  */
 
-import { LISTINGS, CSUN, UNIVERSITIES } from './data/listings.js';
 import { MapManager } from './modules/map.js';
 import { CardRenderer } from './modules/cards.js';
 import { FilterManager } from './modules/filters.js';
 import { ListingModal } from './modules/modal.js';
 
+// ── API Configuration ─────────────────────────────────
+const API_BASE = 'http://localhost:8001/api';
+
+// ── Data (loaded from API) ────────────────────────────
+let LISTINGS = [];
+let UNIVERSITIES = [];
+
 // ── Config ───────────────────────────────────────────
-const MAP_CENTER = { lat: CSUN.lat, lng: CSUN.lng };
+const DEFAULT_CENTER = { lat: 34.2381, lng: -118.5285 }; // CSUN as fallback
 const MAP_ZOOM = 13;
 
 // ── Distance calculation (Haversine) ─────────────────
@@ -62,30 +69,93 @@ function recomputeDistances(targetUni) {
   });
 }
 
-// ── App ──────────────────────────────────────────────
-const mapManager = new MapManager();
-const cardRenderer = new CardRenderer('listings-container', 'listings-count');
-const filterManager = new FilterManager('filter-container', LISTINGS, UNIVERSITIES);
-const modal = new ListingModal('detail-modal');
+// ── API Fetch Functions ───────────────────────────────
 
-function init() {
-  // 0. Compute initial distances from default target (CSUN)
+/**
+ * Fetch all listings from the backend API.
+ */
+async function fetchListings() {
+  try {
+    const response = await fetch(`${API_BASE}/listings/`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    // Convert string lat/lng to numbers (API returns strings for decimals)
+    return data.map((listing) => ({
+      ...listing,
+      lat: parseFloat(listing.lat),
+      lng: parseFloat(listing.lng),
+      price: parseFloat(listing.price),
+      sqft: listing.sqft ? parseInt(listing.sqft, 10) : null,
+    }));
+  } catch (error) {
+    console.error('Failed to fetch listings:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetch all universities from the backend API.
+ */
+async function fetchUniversities() {
+  try {
+    const response = await fetch(`${API_BASE}/universities/`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    // Convert string lat/lng to numbers
+    return data.map((uni) => ({
+      ...uni,
+      lat: parseFloat(uni.lat),
+      lng: parseFloat(uni.lng),
+    }));
+  } catch (error) {
+    console.error('Failed to fetch universities:', error);
+    return [];
+  }
+}
+
+// ── App ──────────────────────────────────────────────
+let mapManager;
+let cardRenderer;
+let filterManager;
+let modal;
+
+async function init() {
+  // 0. Fetch data from API
+  console.log('Fetching data from API...');
+  [LISTINGS, UNIVERSITIES] = await Promise.all([
+    fetchListings(),
+    fetchUniversities(),
+  ]);
+  console.log(`Loaded ${LISTINGS.length} listings and ${UNIVERSITIES.length} universities`);
+
+  // 1. Initialize modules with fetched data
+  mapManager = new MapManager();
+  cardRenderer = new CardRenderer('listings-container', 'listings-count');
+  filterManager = new FilterManager('filter-container', LISTINGS, UNIVERSITIES);
+  modal = new ListingModal('detail-modal');
+
+  // 2. Compute initial distances from default target (CSUN)
   const defaultTarget = filterManager.getTargetUniversity();
   if (defaultTarget) recomputeDistances(defaultTarget);
 
-  // 1. Create the map
-  mapManager.init('map-container', MAP_CENTER, MAP_ZOOM);
+  // 3. Determine map center
+  const mapCenter = defaultTarget
+    ? { lat: defaultTarget.lat, lng: defaultTarget.lng }
+    : DEFAULT_CENTER;
 
-  // 2. Add pill markers for all California universities
+  // 4. Create the map
+  mapManager.init('map-container', mapCenter, MAP_ZOOM);
+
+  // 5. Add pill markers for all California universities
   UNIVERSITIES.forEach((uni) => mapManager.addUniversityMarker(uni));
 
-  // 3. Highlight the default target university marker
+  // 6. Highlight the default target university marker
   if (defaultTarget) mapManager.setTargetUniversity(defaultTarget.name);
 
-  // 4. Add price-tag markers for every listing
+  // 7. Add price-tag markers for every listing
   mapManager.addListingMarkers(LISTINGS);
 
-  // 5. Connect events between map ↔ cards ↔ filters ↔ modal
+  // 8. Connect events between map ↔ cards ↔ filters ↔ modal
   wireEvents();
 }
 
