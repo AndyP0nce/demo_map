@@ -290,4 +290,24 @@ function wireEvents() {
 }
 
 // ── Start ────────────────────────────────────────────
-init();
+
+/**
+ * Wait for Google Maps API to be loaded before initializing.
+ */
+function waitForGoogleMaps() {
+  return new Promise((resolve) => {
+    if (window.google && window.google.maps) {
+      resolve();
+    } else {
+      const checkInterval = setInterval(() => {
+        if (window.google && window.google.maps) {
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 100);
+    }
+  });
+}
+
+// Wait for Google Maps, then initialize the app
+waitForGoogleMaps().then(() => init());
