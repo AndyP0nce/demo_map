@@ -550,6 +550,12 @@
   background: #e4e4e4;
 }
 
+/* Google Places Autocomplete dropdown — must appear above modal */
+.pac-container {
+  z-index: 10000 !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
 /* ── Owner section ───────────────────────────────────── */
 .detail-modal__owner {
   display: flex;

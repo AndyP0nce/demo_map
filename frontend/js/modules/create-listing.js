@@ -29,9 +29,12 @@ export class CreateListingModal {
     this.apiBase = apiBase;
     this._onSuccess = null;
     this._submitting = false;
+    this._autocomplete = null;
+    this._selectedPlace = null; // Stores lat/lng from autocomplete selection
 
     this._render();
     this._bindEvents();
+    this._initAddressAutocomplete();
   }
 
   // ── Public API ──────────────────────────────────────
@@ -224,6 +227,59 @@ export class CreateListingModal {
     });
   }
 
+  // ── Address Autocomplete ────────────────────────────────
+
+  _initAddressAutocomplete() {
+    const addressInput = document.getElementById('cl-address');
+    if (!addressInput || typeof google === 'undefined') return;
+
+    // Create Places Autocomplete restricted to addresses
+    this._autocomplete = new google.maps.places.Autocomplete(addressInput, {
+      types: ['address'],
+      componentRestrictions: { country: 'us' },
+      fields: ['address_components', 'geometry', 'formatted_address'],
+    });
+
+    // When user selects a suggestion, auto-fill city/state/zip
+    this._autocomplete.addListener('place_changed', () => {
+      const place = this._autocomplete.getPlace();
+      if (!place.geometry) return;
+
+      // Store lat/lng so we don't need to geocode on submit
+      this._selectedPlace = {
+        lat: Math.round(place.geometry.location.lat() * 1000000) / 1000000,
+        lng: Math.round(place.geometry.location.lng() * 1000000) / 1000000,
+      };
+
+      // Parse address components
+      let streetNumber = '';
+      let route = '';
+      let city = '';
+      let state = '';
+      let zip = '';
+
+      for (const component of place.address_components) {
+        const type = component.types[0];
+        if (type === 'street_number') streetNumber = component.long_name;
+        if (type === 'route') route = component.long_name;
+        if (type === 'locality') city = component.long_name;
+        if (type === 'administrative_area_level_1') state = component.short_name;
+        if (type === 'postal_code') zip = component.long_name;
+      }
+
+      // Fill form fields
+      addressInput.value = `${streetNumber} ${route}`.trim();
+      document.getElementById('cl-city').value = city;
+      document.getElementById('cl-state').value = state || 'CA';
+      document.getElementById('cl-zip').value = zip;
+    });
+
+    // Clear stored place if user manually edits the address
+    addressInput.addEventListener('input', () => {
+      this._selectedPlace = null;
+    });
+  }
+
   // ── Form helpers ─────────────────────────────────────
 
   _resetForm() {
@@ -234,6 +290,7 @@ export class CreateListingModal {
     const ownerEl = document.getElementById('cl-owner');
     if (stateEl) stateEl.value = 'CA';
     if (ownerEl) ownerEl.value = '65';
+    this._selectedPlace = null; // Clear stored autocomplete selection
     this._setError('');
     this._setSubmitting(false);
   }
@@ -295,17 +352,25 @@ export class CreateListingModal {
     this._setError('');
     this._setSubmitting(true);
 
-    // Geocode address → lat/lng so the listing appears on the map
+    // Use coordinates from autocomplete if available, otherwise geocode
     // Round to 6 decimal places to match DB schema (max_digits=9, decimal_places=6)
     let lat = null;
     let lng = null;
-    try {
-      const coords = await this._geocode(`${address}, ${city}, ${state} ${zip_code}`);
-      lat = Math.round(coords.lat * 1000000) / 1000000;
-      lng = Math.round(coords.lng * 1000000) / 1000000;
-    } catch (geocodeErr) {
-      console.warn('[CreateListing] Geocoding failed:', geocodeErr.message,
-        '— listing will be saved without coordinates and won\'t appear on the map.');
+
+    if (this._selectedPlace) {
+      // User selected from autocomplete — use stored coordinates
+      lat = this._selectedPlace.lat;
+      lng = this._selectedPlace.lng;
+    } else {
+      // Manual entry — geocode the address
+      try {
+        const coords = await this._geocode(`${address}, ${city}, ${state} ${zip_code}`);
+        lat = Math.round(coords.lat * 1000000) / 1000000;
+        lng = Math.round(coords.lng * 1000000) / 1000000;
+      } catch (geocodeErr) {
+        console.warn('[CreateListing] Geocoding failed:', geocodeErr.message,
+          '— listing will be saved without coordinates and won\'t appear on the map.');
+      }
     }
 
     // Build POST body
