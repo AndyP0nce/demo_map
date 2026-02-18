@@ -1,0 +1,268 @@
+/**
+ * filters.css
+ * ---------------------------------------------------
+ * Styles for the filter / search bar above the
+ * listing cards in the sidebar panel.
+ *
+ * BEM naming:
+ *   .filter-bar              – wrapper
+ *   .filter-bar__search      – search input row
+ *   .filter-bar__toggle      – "Filters" expand button
+ *   .filter-bar__panel       – collapsible filter area
+ *   .filter-bar__section     – one filter group
+ *   .filter-bar__check       – checkbox + label pair
+ * ---------------------------------------------------
+ */
+
+/* ── Filter bar wrapper ──────────────────────────────── */
+.filter-bar {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #fafbfc;
+  flex-shrink: 0;
+}
+
+/* ── Search input ────────────────────────────────────── */
+.filter-bar__search {
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.filter-bar__input {
+  width: 100%;
+  padding: 9px 12px 9px 34px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #2a2a2a;
+  background: #ffffff;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.filter-bar__input:focus {
+  border-color: #006aff;
+  box-shadow: 0 0 0 3px rgba(0, 106, 255, 0.12);
+}
+
+.filter-bar__input::placeholder {
+  color: #999999;
+}
+
+.filter-bar__search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #999999;
+  pointer-events: none;
+}
+
+/* ── Toggle button ───────────────────────────────────── */
+.filter-bar__toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #ffffff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  color: #333333;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.filter-bar__toggle:hover {
+  background: #f0f4ff;
+  border-color: #006aff;
+}
+
+.filter-bar__toggle--active {
+  border-color: #006aff;
+  background: #f0f4ff;
+}
+
+.filter-bar__toggle-text {
+  flex: 1;
+  text-align: left;
+}
+
+.filter-bar__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #006aff;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.filter-bar__chevron {
+  color: #666666;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+/* ── Collapsible panel ───────────────────────────────── */
+.filter-bar__panel {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e8eaed;
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+/* Scrollbar inside filter panel */
+.filter-bar__panel::-webkit-scrollbar {
+  width: 4px;
+}
+.filter-bar__panel::-webkit-scrollbar-thumb {
+  background: #cccccc;
+  border-radius: 2px;
+}
+
+/* ── Section (one filter group) ──────────────────────── */
+.filter-bar__section {
+  margin-bottom: 14px;
+}
+
+.filter-bar__label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #555555;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+/* ── Checkbox group ──────────────────────────────────── */
+.filter-bar__checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+
+.filter-bar__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #444444;
+  padding: 3px 8px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  background: #ffffff;
+  transition: background 0.15s, border-color 0.15s;
+  user-select: none;
+}
+
+.filter-bar__check:hover {
+  border-color: #006aff;
+  background: #f0f4ff;
+}
+
+.filter-bar__check input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  accent-color: #006aff;
+  margin: 0;
+  cursor: pointer;
+}
+
+.filter-bar__check input[type="checkbox"]:checked + span {
+  color: #006aff;
+  font-weight: 600;
+}
+
+/* ── Range row (price, sqft) ─────────────────────────── */
+.filter-bar__range-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-bar__range-sep {
+  color: #999999;
+  font-size: 14px;
+}
+
+.filter-bar__number {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid #d0d5dd;
+  border-radius: 5px;
+  font-size: 12px;
+  font-family: inherit;
+  color: #2a2a2a;
+  outline: none;
+  max-width: 120px;
+  transition: border-color 0.15s;
+}
+
+.filter-bar__number:focus {
+  border-color: #006aff;
+}
+
+.filter-bar__number::placeholder {
+  color: #aaaaaa;
+}
+
+/* Hide number input spinners for cleaner look */
+.filter-bar__number::-webkit-outer-spin-button,
+.filter-bar__number::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.filter-bar__number {
+  -moz-appearance: textfield;
+}
+
+/* ── Select (beds, baths) ────────────────────────────── */
+.filter-bar__select {
+  padding: 6px 8px;
+  border: 1px solid #d0d5dd;
+  border-radius: 5px;
+  font-size: 12px;
+  font-family: inherit;
+  color: #2a2a2a;
+  background: #ffffff;
+  cursor: pointer;
+  outline: none;
+  min-width: 80px;
+  transition: border-color 0.15s;
+}
+
+.filter-bar__select:focus {
+  border-color: #006aff;
+}
+
+/* ── Reset button ────────────────────────────────────── */
+.filter-bar__reset {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #666666;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.filter-bar__reset:hover {
+  background: #fff0f0;
+  color: #d32f2f;
+  border-color: #d32f2f;
+}
