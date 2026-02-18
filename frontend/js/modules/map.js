@@ -13,113 +13,131 @@
  *   MarkerOverlay           – shared base for all custom overlays
  *   PriceMarkerOverlay      – Zillow-style price tag pill
  *   UniversityMarkerOverlay – campus pill with graduation-cap icon
+ *
+ * NOTE: The overlay classes are created dynamically inside MapManager.init()
+ *       because they extend google.maps.OverlayView, which isn't available
+ *       until the Google Maps script loads.
  * ---------------------------------------------------
  */
 
-// ─── MarkerOverlay (base class) ──────────────────────
-// Shared logic for all custom OverlayView markers:
-//   draw(), onRemove(), setActive(), and mouse event wiring.
-// Subclasses implement _createDiv() and _getActiveClass().
+// These will be defined after Google Maps loads
+let MarkerOverlay;
+let PriceMarkerOverlay;
+let UniversityMarkerOverlay;
 
-class MarkerOverlay extends google.maps.OverlayView {
-  constructor(position) {
-    super();
-    this.position = position;
-    this.div = null;
-    this.onMouseOver = null;
-    this.onMouseOut = null;
-    this.onClick = null;
-    // Subclasses call this.setMap(map) after setting their own properties
-  }
+/**
+ * Initialize the overlay classes once Google Maps is available.
+ * Called from MapManager.init().
+ */
+function initOverlayClasses() {
+  // Skip if already initialized
+  if (MarkerOverlay) return;
 
-  onAdd() {
-    this.div = this._createDiv();
-    this.div.addEventListener('mouseover', () => { if (this.onMouseOver) this.onMouseOver(); });
-    this.div.addEventListener('mouseout', () => { if (this.onMouseOut) this.onMouseOut(); });
-    this.div.addEventListener('click', () => { if (this.onClick) this.onClick(); });
-    this.getPanes().overlayMouseTarget.appendChild(this.div);
-  }
+  // ─── MarkerOverlay (base class) ──────────────────────
+  // Shared logic for all custom OverlayView markers:
+  //   draw(), onRemove(), setActive(), and mouse event wiring.
+  // Subclasses implement _createDiv() and _getActiveClass().
 
-  draw() {
-    const pos = this.getProjection().fromLatLngToDivPixel(this.position);
-    if (this.div) {
-      this.div.style.left = pos.x + 'px';
-      this.div.style.top = pos.y + 'px';
-    }
-  }
-
-  onRemove() {
-    if (this.div && this.div.parentNode) {
-      this.div.parentNode.removeChild(this.div);
+  MarkerOverlay = class extends google.maps.OverlayView {
+    constructor(position) {
+      super();
+      this.position = position;
       this.div = null;
+      this.onMouseOver = null;
+      this.onMouseOut = null;
+      this.onClick = null;
+      // Subclasses call this.setMap(map) after setting their own properties
     }
-  }
 
-  setActive(active) {
-    if (this.div) this.div.classList.toggle(this._getActiveClass(), active);
-  }
+    onAdd() {
+      this.div = this._createDiv();
+      this.div.addEventListener('mouseover', () => { if (this.onMouseOver) this.onMouseOver(); });
+      this.div.addEventListener('mouseout', () => { if (this.onMouseOut) this.onMouseOut(); });
+      this.div.addEventListener('click', () => { if (this.onClick) this.onClick(); });
+      this.getPanes().overlayMouseTarget.appendChild(this.div);
+    }
 
-  /** @abstract – subclass returns the DOM element to render */
-  _createDiv() { throw new Error('Subclass must implement _createDiv'); }
+    draw() {
+      const pos = this.getProjection().fromLatLngToDivPixel(this.position);
+      if (this.div) {
+        this.div.style.left = pos.x + 'px';
+        this.div.style.top = pos.y + 'px';
+      }
+    }
 
-  /** @abstract – subclass returns the CSS class toggled by setActive() */
-  _getActiveClass() { return 'marker--active'; }
-}
+    onRemove() {
+      if (this.div && this.div.parentNode) {
+        this.div.parentNode.removeChild(this.div);
+        this.div = null;
+      }
+    }
 
-// ─── PriceMarkerOverlay ──────────────────────────────
-// Renders a small price-tag div on the map (like Zillow's $X,XXX pills).
+    setActive(active) {
+      if (this.div) this.div.classList.toggle(this._getActiveClass(), active);
+    }
 
-class PriceMarkerOverlay extends MarkerOverlay {
-  constructor(position, price, id, map) {
-    super(position);
-    this.price = price;
-    this.id = id;
-    this.setMap(map);
-  }
+    /** @abstract – subclass returns the DOM element to render */
+    _createDiv() { throw new Error('Subclass must implement _createDiv'); }
 
-  _createDiv() {
-    const div = document.createElement('div');
-    div.className = 'price-marker';
-    div.dataset.listingId = this.id;
-    div.textContent = `$${this.price.toLocaleString()}`;
-    return div;
-  }
+    /** @abstract – subclass returns the CSS class toggled by setActive() */
+    _getActiveClass() { return 'marker--active'; }
+  };
 
-  _getActiveClass() { return 'price-marker--active'; }
-}
+  // ─── PriceMarkerOverlay ──────────────────────────────
+  // Renders a small price-tag div on the map (like Zillow's $X,XXX pills).
 
-// ─── UniversityMarkerOverlay ─────────────────────────
-// Renders a named pill on the map for the university.
+  PriceMarkerOverlay = class extends MarkerOverlay {
+    constructor(position, price, id, map) {
+      super(position);
+      this.price = price;
+      this.id = id;
+      this.setMap(map);
+    }
 
-class UniversityMarkerOverlay extends MarkerOverlay {
-  constructor(position, name, fullName, map) {
-    super(position);
-    this.name = name;
-    this.fullName = fullName;
-    this.onDblClick = null;
-    this.setMap(map);
-  }
+    _createDiv() {
+      const div = document.createElement('div');
+      div.className = 'price-marker';
+      div.dataset.listingId = this.id;
+      div.textContent = `$${this.price.toLocaleString()}`;
+      return div;
+    }
 
-  onAdd() {
-    super.onAdd();
-    this.div.addEventListener('dblclick', (e) => {
-      e.stopPropagation();
-      if (this.onDblClick) this.onDblClick();
-    });
-  }
+    _getActiveClass() { return 'price-marker--active'; }
+  };
 
-  _createDiv() {
-    const div = document.createElement('div');
-    div.className = 'uni-marker';
-    div.innerHTML = `
-      <svg class="uni-marker__icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-        <path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6L23 9l-11-6z"/>
-      </svg>
-      <span class="uni-marker__name">${this.name}</span>`;
-    return div;
-  }
+  // ─── UniversityMarkerOverlay ─────────────────────────
+  // Renders a named pill on the map for the university.
 
-  _getActiveClass() { return 'uni-marker--active'; }
+  UniversityMarkerOverlay = class extends MarkerOverlay {
+    constructor(position, name, fullName, map) {
+      super(position);
+      this.name = name;
+      this.fullName = fullName;
+      this.onDblClick = null;
+      this.setMap(map);
+    }
+
+    onAdd() {
+      super.onAdd();
+      this.div.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        if (this.onDblClick) this.onDblClick();
+      });
+    }
+
+    _createDiv() {
+      const div = document.createElement('div');
+      div.className = 'uni-marker';
+      div.innerHTML = `
+        <svg class="uni-marker__icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+          <path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6L23 9l-11-6z"/>
+        </svg>
+        <span class="uni-marker__name">${this.name}</span>`;
+      return div;
+    }
+
+    _getActiveClass() { return 'uni-marker--active'; }
+  };
 }
 
 // ─── MapManager (public API) ─────────────────────────
@@ -148,6 +166,9 @@ export class MapManager {
    * @param {number} zoom         – initial zoom level
    */
   init(containerId, center, zoom) {
+    // Initialize overlay classes now that Google Maps is available
+    initOverlayClasses();
+
     this.map = new google.maps.Map(document.getElementById(containerId), {
       center: center,
       zoom: zoom,
