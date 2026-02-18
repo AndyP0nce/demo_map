@@ -25,6 +25,7 @@ import { MapManager } from './modules/map.js';
 import { CardRenderer } from './modules/cards.js';
 import { FilterManager } from './modules/filters.js';
 import { ListingModal } from './modules/modal.js';
+import { CreateListingModal } from './modules/create-listing.js';
 
 // ── API Configuration ─────────────────────────────────
 const API_BASE = 'http://localhost:8001/api';
@@ -45,6 +46,14 @@ let UNIVERSITIES = [];
 // ── Config ───────────────────────────────────────────
 const DEFAULT_CENTER = { lat: 34.2381, lng: -118.5285 }; // CSUN as fallback
 const MAP_ZOOM = 13;
+
+// Deterministic card placeholder colors (no real photos yet).
+// index = listing.id % CARD_COLORS.length → same listing always gets same color.
+const CARD_COLORS = [
+  '#4A90D9', '#50B86C', '#E8825B', '#9B59B6', '#2ECC71',
+  '#3498DB', '#E74C3C', '#F39C12', '#1ABC9C', '#8E44AD',
+  '#D35400', '#27AE60', '#2980B9', '#C0392B', '#16A085',
+];
 
 // ── Distance calculation (Haversine) ─────────────────
 
@@ -115,6 +124,10 @@ async function fetchListings() {
       lng: parseFloat(listing.lng),
       price: parseFloat(listing.price),
       sqft: listing.sqft ? parseInt(listing.sqft, 10) : null,
+      // Placeholder card color based on listing id (consistent across reloads)
+      imageColor: CARD_COLORS[listing.id % CARD_COLORS.length],
+      // available is a boolean from the API; convert to display string
+      available: listing.available ? 'Now' : 'Not available',
     }));
 
     // Check for NaN after parsing (bad data in DB)
@@ -183,6 +196,7 @@ let mapManager;
 let cardRenderer;
 let filterManager;
 let modal;
+let createModal;
 
 async function init() {
   log('=== App init started ===');
@@ -208,6 +222,7 @@ async function init() {
   cardRenderer = new CardRenderer('listings-container', 'listings-count');
   filterManager = new FilterManager('filter-container', LISTINGS, UNIVERSITIES);
   modal = new ListingModal('detail-modal');
+  createModal = new CreateListingModal('create-listing-modal', API_BASE);
 
   // 2. Compute initial distances from default target (CSUN)
   const defaultTarget = filterManager.getTargetUniversity();
@@ -335,6 +350,47 @@ function wireEvents() {
   // Google Place selected from autocomplete → geocode by placeId and pan
   filterManager.onPlaceSelect(async (placeId) => {
     await mapManager.geocodePlaceAndHighlight(placeId);
+  });
+
+  // "+ List Your Place" button → open create listing modal
+  document.getElementById('btn-list-place').addEventListener('click', () => {
+    createModal.open();
+  });
+
+  // New listing created → add to map, sidebar, and filter manager
+  createModal.onSuccess((rawListing) => {
+    // Parse the API response into the same shape app.js uses
+    const listing = {
+      ...rawListing,
+      lat: parseFloat(rawListing.lat),
+      lng: parseFloat(rawListing.lng),
+      price: parseFloat(rawListing.price),
+      sqft: rawListing.sqft ? parseInt(rawListing.sqft, 10) : null,
+      imageColor: CARD_COLORS[rawListing.id % CARD_COLORS.length],
+      available: rawListing.available ? 'Now' : 'Not available',
+    };
+
+    // Compute distance from current target university
+    const target = filterManager.getTargetUniversity();
+    if (target && !isNaN(listing.lat) && !isNaN(listing.lng)) {
+      listing._distanceMi = haversineDistanceMi(listing.lat, listing.lng, target.lat, target.lng);
+      listing._targetName = target.name;
+    }
+
+    // Add to global listings array and update filter manager's copy
+    LISTINGS.push(listing);
+    filterManager.listings = LISTINGS;
+
+    // Add map marker (only if coordinates were geocoded successfully)
+    if (!isNaN(listing.lat) && !isNaN(listing.lng)) {
+      mapManager.addListingMarkers([listing]);
+      mapManager.panTo(listing.lat, listing.lng, 15);
+      log(`New listing added to map: "${listing.title}" at ${listing.lat}, ${listing.lng}`);
+    } else {
+      warn(`New listing "${listing.title}" has no coordinates — no map marker added.`);
+    }
+
+    refreshView();
   });
 
   // University marker double-clicked → set as target
