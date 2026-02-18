@@ -296,12 +296,13 @@ export class CreateListingModal {
     this._setSubmitting(true);
 
     // Geocode address → lat/lng so the listing appears on the map
+    // Round to 6 decimal places to match DB schema (max_digits=9, decimal_places=6)
     let lat = null;
     let lng = null;
     try {
       const coords = await this._geocode(`${address}, ${city}, ${state} ${zip_code}`);
-      lat = coords.lat;
-      lng = coords.lng;
+      lat = Math.round(coords.lat * 1000000) / 1000000;
+      lng = Math.round(coords.lng * 1000000) / 1000000;
     } catch (geocodeErr) {
       console.warn('[CreateListing] Geocoding failed:', geocodeErr.message,
         '— listing will be saved without coordinates and won\'t appear on the map.');

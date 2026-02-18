@@ -207,6 +207,9 @@ class ApartmentCreateSerializer(serializers.ModelSerializer):
     )
     amenities_str = serializers.CharField(source='amenities', read_only=True)
 
+    # image_url is optional — default to empty string if not provided
+    image_url = serializers.CharField(required=False, allow_blank=True, default='')
+
     class Meta:
         model = ApartmentPost
         fields = [
