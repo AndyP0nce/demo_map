@@ -29,6 +29,15 @@ import { ListingModal } from './modules/modal.js';
 // ── API Configuration ─────────────────────────────────
 const API_BASE = 'http://localhost:8001/api';
 
+// ── Diagnostics ───────────────────────────────────────
+// Set to true to enable verbose logging in the browser console.
+// Shows every API call, response, and data shape.
+const DEBUG = true;
+
+function log(...args)  { if (DEBUG) console.log('[App]', ...args); }
+function warn(...args) { if (DEBUG) console.warn('[App]', ...args); }
+function err(...args)  { console.error('[App ERROR]', ...args); }
+
 // ── Data (loaded from API) ────────────────────────────
 let LISTINGS = [];
 let UNIVERSITIES = [];
@@ -75,20 +84,55 @@ function recomputeDistances(targetUni) {
  * Fetch all listings from the backend API.
  */
 async function fetchListings() {
+  const url = `${API_BASE}/listings/`;
+  log(`Fetching listings from ${url}`);
   try {
-    const response = await fetch(`${API_BASE}/listings/`);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const response = await fetch(url);
+    log(`Listings response status: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      err(`Listings API returned error: HTTP ${response.status}. Is the backend running on port 8001?`);
+      throw new Error(`HTTP ${response.status}`);
+    }
+
     const data = await response.json();
-    // Convert string lat/lng to numbers (API returns strings for decimals)
-    return data.map((listing) => ({
+    log(`Raw listings from API: ${data.length} records`);
+
+    if (data.length === 0) {
+      warn('No listings returned from API. The database may be empty — add listings via the Django shell or POST /api/listings/');
+    }
+
+    // Check for listings missing coordinates (they won't show as map markers)
+    const missingCoords = data.filter(l => !l.lat || !l.lng);
+    if (missingCoords.length > 0) {
+      warn(`${missingCoords.length} listing(s) have no lat/lng and will be skipped by the map:`,
+        missingCoords.map(l => `id=${l.id} "${l.title}"`));
+    }
+
+    const parsed = data.map((listing) => ({
       ...listing,
       lat: parseFloat(listing.lat),
       lng: parseFloat(listing.lng),
       price: parseFloat(listing.price),
       sqft: listing.sqft ? parseInt(listing.sqft, 10) : null,
     }));
+
+    // Check for NaN after parsing (bad data in DB)
+    const badCoords = parsed.filter(l => isNaN(l.lat) || isNaN(l.lng));
+    if (badCoords.length > 0) {
+      warn(`${badCoords.length} listing(s) have invalid lat/lng after parsing:`,
+        badCoords.map(l => `id=${l.id} lat=${l.lat} lng=${l.lng}`));
+    }
+
+    log(`Listings ready to display: ${parsed.length}`);
+    return parsed;
+
   } catch (error) {
-    console.error('Failed to fetch listings:', error);
+    if (error.message.includes('Failed to fetch') || error.message.includes('ERR_CONNECTION_REFUSED')) {
+      err('Cannot reach backend. Make sure Django is running: cd backend && python manage.py runserver 8001');
+    } else {
+      err('Failed to fetch listings:', error.message);
+    }
     return [];
   }
 }
@@ -97,18 +141,39 @@ async function fetchListings() {
  * Fetch all universities from the backend API.
  */
 async function fetchUniversities() {
+  const url = `${API_BASE}/universities/`;
+  log(`Fetching universities from ${url}`);
   try {
-    const response = await fetch(`${API_BASE}/universities/`);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const response = await fetch(url);
+    log(`Universities response status: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      err(`Universities API returned error: HTTP ${response.status}`);
+      throw new Error(`HTTP ${response.status}`);
+    }
+
     const data = await response.json();
-    // Convert string lat/lng to numbers
-    return data.map((uni) => ({
+    log(`Raw universities from API: ${data.length} records`);
+
+    if (data.length === 0) {
+      warn('No universities returned. Run: python manage.py seed_universities');
+    }
+
+    const parsed = data.map((uni) => ({
       ...uni,
       lat: parseFloat(uni.lat),
       lng: parseFloat(uni.lng),
     }));
+
+    log(`Universities ready: ${parsed.length}`);
+    return parsed;
+
   } catch (error) {
-    console.error('Failed to fetch universities:', error);
+    if (error.message.includes('Failed to fetch') || error.message.includes('ERR_CONNECTION_REFUSED')) {
+      err('Cannot reach backend. Make sure Django is running: cd backend && python manage.py runserver 8001');
+    } else {
+      err('Failed to fetch universities:', error.message);
+    }
     return [];
   }
 }
@@ -120,15 +185,25 @@ let filterManager;
 let modal;
 
 async function init() {
+  log('=== App init started ===');
+  log(`API base: ${API_BASE}`);
+
   // 0. Fetch data from API
-  console.log('Fetching data from API...');
+  log('Step 1: Fetching listings and universities from API...');
   [LISTINGS, UNIVERSITIES] = await Promise.all([
     fetchListings(),
     fetchUniversities(),
   ]);
-  console.log(`Loaded ${LISTINGS.length} listings and ${UNIVERSITIES.length} universities`);
+  log(`Step 1 done — ${LISTINGS.length} listings, ${UNIVERSITIES.length} universities`);
+
+  if (LISTINGS.length === 0 && UNIVERSITIES.length === 0) {
+    err('Both listings and universities returned empty. Backend is likely not running or not reachable at', API_BASE);
+  } else if (LISTINGS.length === 0) {
+    warn('No listings loaded. Map markers and cards will be empty. Add listings to the database.');
+  }
 
   // 1. Initialize modules with fetched data
+  log('Step 2: Initializing map, cards, filters, modal...');
   mapManager = new MapManager();
   cardRenderer = new CardRenderer('listings-container', 'listings-count');
   filterManager = new FilterManager('filter-container', LISTINGS, UNIVERSITIES);
@@ -136,27 +211,37 @@ async function init() {
 
   // 2. Compute initial distances from default target (CSUN)
   const defaultTarget = filterManager.getTargetUniversity();
-  if (defaultTarget) recomputeDistances(defaultTarget);
+  if (defaultTarget) {
+    log(`Step 3: Default university target: ${defaultTarget.name}`);
+    recomputeDistances(defaultTarget);
+  } else {
+    warn('No default university found — distance sorting will not work until a target is selected');
+  }
 
   // 3. Determine map center
   const mapCenter = defaultTarget
     ? { lat: defaultTarget.lat, lng: defaultTarget.lng }
     : DEFAULT_CENTER;
+  log(`Step 4: Map center set to lat=${mapCenter.lat}, lng=${mapCenter.lng}`);
 
   // 4. Create the map
   mapManager.init('map-container', mapCenter, MAP_ZOOM);
+  log('Step 4: Map initialized');
 
   // 5. Add pill markers for all California universities
   UNIVERSITIES.forEach((uni) => mapManager.addUniversityMarker(uni));
+  log(`Step 5: Added ${UNIVERSITIES.length} university markers`);
 
   // 6. Highlight the default target university marker
   if (defaultTarget) mapManager.setTargetUniversity(defaultTarget.name);
 
   // 7. Add price-tag markers for every listing
   mapManager.addListingMarkers(LISTINGS);
+  log(`Step 7: Added ${LISTINGS.length} listing markers`);
 
   // 8. Connect events between map ↔ cards ↔ filters ↔ modal
   wireEvents();
+  log('=== App init complete ===');
 }
 
 /**
